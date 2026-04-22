@@ -1,0 +1,21 @@
+{% load wagtailcore_tags %}
+<div class="card" style="display:grid; gap:20px; grid-template-columns: 1fr; align-items:center;">
+  <style>
+    @media (min-width: 960px) {
+      .two-col-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    }
+  </style>
+  <div class="two-col-grid" style="display:grid; gap:20px; align-items:center;">
+    {% if value.swap %}
+      <div>
+        {% if value.right_image %}{% image value.right_image fill-900x600 class="two-col-image" %}{% endif %}
+      </div>
+      <div>{{ value.left_content|richtext }}</div>
+    {% else %}
+      <div>{{ value.left_content|richtext }}</div>
+      <div>
+        {% if value.right_image %}{% image value.right_image fill-900x600 class="two-col-image" %}{% endif %}
+      </div>
+    {% endif %}
+  </div>
+</div>

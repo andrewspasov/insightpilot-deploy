@@ -1,0 +1,8 @@
+{% load wagtailimages_tags %}
+{% image value.image max-1400x900 as rendition %}
+{% with alignment=value.alignment|default:"center" %}
+  <figure style="text-align: {{ alignment }}; margin: 18px 0;">
+    <img src="{{ rendition.url }}" width="{{ rendition.width }}" height="{{ rendition.height }}" alt="{{ value.caption|default:value.image.title }}" style="{% if alignment == 'full' %}width:100%;{% else %}max-width: 90%;{% endif %} height: auto; border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,0.35);" />
+    {% if value.caption %}<figcaption class="muted" style="margin-top:6px;">{{ value.caption }}</figcaption>{% endif %}
+  </figure>
+{% endwith %}

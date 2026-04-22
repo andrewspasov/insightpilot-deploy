@@ -1,0 +1,114 @@
+{
+  "name": "NTR Weekly Digest",
+  "nodes": [
+    {
+      "id": "1",
+      "name": "Weekly Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        -360,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "value": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "2",
+      "name": "GET DIGEST",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -80,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "http://host.docker.internal:8000/api/internal/ntr/digest/weekly",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParametersUi": {
+          "parameter": [
+            {
+              "name": "X-INSIGHTPILOT-TOKEN",
+              "value": "YOUR_INTERNAL_TOKEN"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "3",
+      "name": "Split Digests",
+      "type": "n8n-nodes-base.itemLists",
+      "typeVersion": 2,
+      "position": [
+        160,
+        0
+      ],
+      "parameters": {
+        "operation": "splitOutItems",
+        "fieldToSplitOut": "digests"
+      }
+    },
+    {
+      "id": "4",
+      "name": "Send Digest Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        420,
+        0
+      ],
+      "parameters": {
+        "fromEmail": "you@example.com",
+        "toEmail": "={{$json[\"email\"]}}",
+        "subject": "={{$json[\"title\"]}}",
+        "html": "={{$json[\"message\"]}}"
+      }
+    }
+  ],
+  "connections": {
+    "Weekly Trigger": {
+      "main": [
+        [
+          {
+            "node": "GET DIGEST",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET DIGEST": {
+      "main": [
+        [
+          {
+            "node": "Split Digests",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Digests": {
+      "main": [
+        [
+          {
+            "node": "Send Digest Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

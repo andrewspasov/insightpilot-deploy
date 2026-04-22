@@ -1,0 +1,37 @@
+<aside class="card" style="position: sticky; top: 90px;">
+  <div style="font-weight:700; margin-bottom:10px;">On this page</div>
+  <ul class="toc-list" style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:8px;">
+    {% if not value.auto and value.manual_items %}
+      {% for item in value.manual_items %}
+        <li><a href="#{{ item.anchor_id }}">{{ item.label }}</a></li>
+      {% endfor %}
+    {% endif %}
+  </ul>
+</aside>
+{% if value.auto %}
+  <script>
+    (function() {
+      const scriptTag = document.currentScript;
+      const container = scriptTag?.previousElementSibling?.querySelector(".toc-list");
+      if (!container) return;
+      const headings = document.querySelectorAll("article h2, article h3");
+      const items = [];
+      headings.forEach((h) => {
+        const id = h.id || h.textContent.trim().toLowerCase().replace(/[^a-z0-9]+/g,"-");
+        h.id = id;
+        items.push({ level: h.tagName, id, text: h.textContent.trim() });
+      });
+      if (items.length === 0) return;
+      container.innerHTML = "";
+      items.forEach((item) => {
+        const li = document.createElement("li");
+        li.style.marginLeft = item.level === "H3" ? "12px" : "0";
+        const a = document.createElement("a");
+        a.href = "#" + item.id;
+        a.textContent = item.text;
+        li.appendChild(a);
+        container.appendChild(li);
+      });
+    })();
+  </script>
+{% endif %}

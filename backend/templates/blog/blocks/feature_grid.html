@@ -1,0 +1,11 @@
+<div class="card">
+  <div style="display:grid; gap:14px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+    {% for item in value.items %}
+      <div style="padding:16px; border:1px solid rgba(255,255,255,0.08); border-radius:12px; background: rgba(255,255,255,0.02);">
+        {% if item.icon %}<div style="font-size: 1.6rem; margin-bottom: 6px;">{{ item.icon }}</div>{% endif %}
+        <div style="font-weight:700; margin-bottom:6px;">{{ item.title }}</div>
+        <div class="muted">{{ item.text }}</div>
+      </div>
+    {% endfor %}
+  </div>
+</div>

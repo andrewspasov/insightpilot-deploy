@@ -1,0 +1,23 @@
+{% load wagtailcore_tags %}
+{% with "#0ea5e9" as tone %}
+  {% if value.kind == "success" %}
+    {% with "#22c55e" as tone %}
+      <div class="card" style="border-color: rgba(255,255,255,0.12); background: rgba(255,255,255,0.02); border-left: 4px solid {{ tone }};">
+        {% if value.title %}<div style="font-weight:700; margin-bottom:6px;">{{ value.title }}</div>{% endif %}
+        <div class="muted">{{ value.body|richtext }}</div>
+      </div>
+    {% endwith %}
+  {% elif value.kind == "warning" %}
+    {% with "#f59e0b" as tone %}
+      <div class="card" style="border-color: rgba(255,255,255,0.12); background: rgba(255,255,255,0.02); border-left: 4px solid {{ tone }};">
+        {% if value.title %}<div style="font-weight:700; margin-bottom:6px;">{{ value.title }}</div>{% endif %}
+        <div class="muted">{{ value.body|richtext }}</div>
+      </div>
+    {% endwith %}
+  {% else %}
+    <div class="card" style="border-color: rgba(255,255,255,0.12); background: rgba(255,255,255,0.02); border-left: 4px solid {{ tone }};">
+      {% if value.title %}<div style="font-weight:700; margin-bottom:6px;">{{ value.title }}</div>{% endif %}
+      <div class="muted">{{ value.body|richtext }}</div>
+    </div>
+  {% endif %}
+{% endwith %}

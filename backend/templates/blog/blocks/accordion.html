@@ -1,0 +1,27 @@
+{% load wagtailcore_tags %}
+<div class="card" id="accordion-{{ self.id }}">
+  {% for item in value.items %}
+    <div style="border:1px solid rgba(255,255,255,0.08); border-radius:10px; margin-bottom:10px; overflow:hidden;">
+      <button type="button" style="width:100%; text-align:left; background: rgba(255,255,255,0.02); color: inherit; border:none; padding:12px 14px; font-weight:700; cursor:pointer;">
+        {{ item.title }}
+      </button>
+      <div style="display:none; padding:0 14px 12px;" class="accordion-body">
+        <div class="muted">{{ item.content|richtext }}</div>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+<script>
+  (function() {
+    const root = document.getElementById("accordion-{{ self.id }}");
+    if (!root) return;
+    const buttons = root.querySelectorAll("button");
+    buttons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const body = btn.nextElementSibling;
+        const open = body.style.display === "block";
+        body.style.display = open ? "none" : "block";
+      });
+    });
+  })();
+</script>

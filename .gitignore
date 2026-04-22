@@ -1,0 +1,37 @@
+# OS files
+.DS_Store
+
+# Editor settings
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Backend local-only files
+/backend/.env
+/backend/db.sqlite3
+/backend/venv/
+/backend/media/
+/backend/staticfiles/
+
+# Frontend local-only files
+/frontend/node_modules/
+/frontend/dist/
+/frontend/dist-ssr/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment overrides
+*.local
+
+# Local notes / planning artifacts
+/next steps for N8N weekly and notifications.png

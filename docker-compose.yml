@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: insightpilot-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: insightpilot
+      POSTGRES_USER: insightpilot
+      POSTGRES_PASSWORD: insightpilot_dev_pw
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U insightpilot -d insightpilot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:

@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% load wagtailcore_tags wagtailimages_tags %}
+
+{% block title %}{{ page.title }} | InsightPilot{% endblock %}
+
+{% block content %}
+  <section class="card" style="margin-bottom:18px;">
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <div class="pill">Blog</div>
+      <h1 style="margin:0; font-size: 2rem; letter-spacing:-0.02em;">{{ page.title }}</h1>
+      {% if page.intro %}
+        <div class="muted">{{ page.intro|richtext }}</div>
+      {% endif %}
+      <form method="get" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        <input type="text" name="q" value="{{ search_query }}" placeholder="Search posts..." style="flex:1; min-width:200px; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06); color: #e5e7eb;">
+        <button class="btn" type="submit">Search</button>
+      </form>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        <span class="muted">Categories:</span>
+        <a class="pill" href="?{% if search_query %}q={{ search_query }}{% endif %}{% if active_tag %}&tag={{ active_tag }}{% endif %}">All</a>
+        {% for cat in categories %}
+          <a class="pill" href="?category={{ cat.slug }}{% if search_query %}&q={{ search_query }}{% endif %}{% if active_tag %}&tag={{ active_tag }}{% endif %}" style="border-color: {{ cat.color|default:'#22d3ee' }}; color: {{ cat.color|default:'#22d3ee' }};">
+            {% if cat.icon %}{{ cat.icon }} {% endif %}{{ cat.name }}
+          </a>
+        {% endfor %}
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        <span class="muted">Tags:</span>
+        {% for tag in tags %}
+          <a class="pill" href="?tag={{ tag.slug }}{% if search_query %}&q={{ search_query }}{% endif %}{% if active_category %}&category={{ active_category }}{% endif %}">{{ tag.name }}</a>
+        {% empty %}
+          <span class="muted">No tags yet.</span>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <div class="grid">
+    {% if posts %}
+      {% for post in posts %}
+        <article class="card">
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              {% if post.date %}<span class="muted">{{ post.date|date:"M j, Y" }}</span>{% endif %}
+              {% if post.author_name %}<span class="pill">{{ post.author_name }}</span>{% endif %}
+              {% for cat in post.categories.all %}
+                <span class="pill" style="border-color: {{ cat.color|default:'#22d3ee' }}; color: {{ cat.color|default:'#22d3ee' }};">{% if cat.icon %}{{ cat.icon }} {% endif %}{{ cat.name }}</span>
+              {% endfor %}
+            </div>
+            <h2 style="margin:0; letter-spacing:-0.01em;"><a href="{% pageurl post %}">{{ post.title }}</a></h2>
+            {% if post.excerpt %}<div class="muted">{{ post.excerpt }}</div>{% endif %}
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              {% for tag in post.tags.all %}
+                <span class="pill" style="background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.1);">{{ tag.name }}</span>
+              {% endfor %}
+            </div>
+            <div style="display:flex; gap:10px; align-items:center;">
+              <a class="btn" href="{% pageurl post %}">Read post</a>
+              {% if post.estimated_read_time %}<span class="muted">{{ post.estimated_read_time }} min read</span>{% endif %}
+            </div>
+          </div>
+        </article>
+      {% endfor %}
+    {% else %}
+      <p class="muted">No posts yet.</p>
+    {% endif %}
+  </div>
+
+  {% if posts and posts.has_other_pages %}
+    <div style="margin-top:18px; display:flex; gap:10px; flex-wrap:wrap;">
+      {% if posts.has_previous %}
+        <a class="btn btn-outline" href="?page={{ posts.previous_page_number }}{% if active_category %}&category={{ active_category }}{% endif %}{% if active_tag %}&tag={{ active_tag }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}">Previous</a>
+      {% endif %}
+      <span class="muted">Page {{ posts.number }} of {{ posts.paginator.num_pages }}</span>
+      {% if posts.has_next %}
+        <a class="btn" href="?page={{ posts.next_page_number }}{% if active_category %}&category={{ active_category }}{% endif %}{% if active_tag %}&tag={{ active_tag }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}">Next</a>
+      {% endif %}
+    </div>
+  {% endif %}
+{% endblock %}

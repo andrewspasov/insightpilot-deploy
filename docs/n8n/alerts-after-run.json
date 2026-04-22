@@ -1,0 +1,154 @@
+{
+  "name": "NTR Alerts After Run",
+  "nodes": [
+    {
+      "id": "1",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        -520,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "value": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "2",
+      "name": "RUN ALL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -260,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/internal/ntr/run-all?delay_seconds=2",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParametersUi": {
+          "parameter": [
+            {
+              "name": "X-INSIGHTPILOT-TOKEN",
+              "value": "YOUR_INTERNAL_TOKEN"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "3",
+      "name": "EVALUATE ALERTS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -20,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/internal/ntr/alerts/evaluate-batch",
+        "authentication": "none",
+        "sendHeaders": true,
+        "sendBody": false,
+        "headerParametersUi": {
+          "parameter": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-INSIGHTPILOT-TOKEN",
+              "value": "YOUR_INTERNAL_TOKEN"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "4",
+      "name": "Split Events",
+      "type": "n8n-nodes-base.itemLists",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "operation": "splitOutItems",
+        "fieldToSplitOut": "events"
+      }
+    },
+    {
+      "id": "5",
+      "name": "Send Alert Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ],
+      "parameters": {
+        "fromEmail": "you@example.com",
+        "toEmail": "={{$json[\"user_email\"] || $json[\"email\"]}}",
+        "subject": "={{$json[\"message\"]}}",
+        "html": "={{$json[\"message\"]}}"
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "RUN ALL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RUN ALL": {
+      "main": [
+        [
+          {
+            "node": "EVALUATE ALERTS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EVALUATE ALERTS": {
+      "main": [
+        [
+          {
+            "node": "Split Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Events": {
+      "main": [
+        [
+          {
+            "node": "Send Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

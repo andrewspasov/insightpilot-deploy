@@ -1,0 +1,23 @@
+{% load wagtailcore_tags wagtailimages_tags %}
+{% if value.background_image %}
+  {% image value.background_image fill-1400x700 as hero %}
+{% endif %}
+<section class="card" style="padding: 32px; position: relative; overflow: hidden; background: linear-gradient(135deg, rgba(14,165,233,0.22), rgba(34,211,238,0.08)), rgba(15,23,42,0.85);">
+  {% if hero %}
+    <div style="position:absolute; inset:0; opacity:0.25; background-image:url('{{ hero.url }}'); background-size:cover; background-position:center; filter: blur(10px); transform: scale(1.05);"></div>
+  {% endif %}
+  <div style="position: relative; z-index: 1;">
+    {% if value.eyebrow %}
+      <div class="pill" style="background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.18); margin-bottom:10px;">{{ value.eyebrow }}</div>
+    {% endif %}
+    <h1 style="margin: 0 0 12px; font-size: 2.4rem; letter-spacing: -0.02em;">{{ value.title }}</h1>
+    {% if value.subtitle %}
+      <div class="muted" style="max-width: 760px;">{{ value.subtitle|richtext }}</div>
+    {% endif %}
+    {% if value.button_text and value.button_url %}
+      <div style="margin-top:16px;">
+        <a class="btn" href="{{ value.button_url }}">{{ value.button_text }}</a>
+      </div>
+    {% endif %}
+  </div>
+</section>

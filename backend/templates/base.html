@@ -1,0 +1,110 @@
+{% load wagtailcore_tags %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}InsightPilot{% endblock %}</title>
+    {% block meta %}{% endblock %}
+    <style>
+      :root {
+        --bg: #0b1021;
+        --surface: #0f172a;
+        --surface-2: #111827;
+        --card: #0f172a;
+        --card-border: #1f2937;
+        --text: #e5e7eb;
+        --muted: #9ca3af;
+        --brand: #0ea5e9;
+        --brand-2: #22d3ee;
+        --accent: #22c55e;
+        --warn: #facc15;
+        --danger: #f87171;
+        --shadow: 0 20px 60px rgba(0,0,0,0.35);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        line-height: 1.6;
+        color: var(--text);
+        background: radial-gradient(circle at 20% 20%, rgba(34,211,238,0.08), transparent 25%),
+                    radial-gradient(circle at 80% 10%, rgba(14,165,233,0.12), transparent 25%),
+                    var(--bg);
+        min-height: 100vh;
+      }
+      a { color: var(--brand); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      header {
+        position: sticky; top: 0; z-index: 20;
+        backdrop-filter: blur(12px);
+        background: rgba(11, 16, 33, 0.8);
+        border-bottom: 1px solid rgba(255,255,255,0.04);
+      }
+      .wrap { max-width: 1140px; margin: 0 auto; padding: 16px 20px; }
+      .nav { display: flex; gap: 16px; align-items: center; }
+      .nav a { color: var(--text); opacity: 0.9; font-weight: 600; }
+      .nav a:hover { opacity: 1; }
+      main { max-width: 1140px; margin: 0 auto; padding: 28px 20px 64px; }
+      .card {
+        background: linear-gradient(135deg, rgba(15,23,42,0.95), rgba(17,24,39,0.9));
+        border: 1px solid var(--card-border);
+        border-radius: 16px;
+        padding: 22px;
+        box-shadow: var(--shadow);
+      }
+      .muted { color: var(--muted); }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.08);
+        color: var(--text);
+        font-size: 0.9rem;
+      }
+      article img { max-width: 100%; height: auto; border-radius: 12px; }
+      article blockquote {
+        border-left: 4px solid var(--brand);
+        margin: 16px 0;
+        padding: 10px 14px;
+        background: rgba(255,255,255,0.03);
+        color: var(--text);
+        border-radius: 12px;
+      }
+      article table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+      article table th, article table td { border: 1px solid rgba(255,255,255,0.06); padding: 10px 12px; text-align: left; }
+      article table th { background: rgba(255,255,255,0.05); }
+      .btn {
+        display: inline-flex; align-items: center; justify-content: center;
+        gap: 8px; padding: 10px 16px; border-radius: 12px;
+        background: linear-gradient(120deg, var(--brand), var(--brand-2));
+        color: #0b1021; font-weight: 700; border: none; cursor: pointer; text-decoration: none;
+        box-shadow: 0 12px 30px rgba(14,165,233,0.35);
+      }
+      .btn-outline {
+        background: transparent;
+        color: var(--text);
+        border: 1px solid rgba(255,255,255,0.12);
+      }
+      .grid { display: grid; gap: 16px; }
+      @media (min-width: 960px) {
+        .grid-2 { grid-template-columns: 2fr 1fr; }
+      }
+    </style>
+    {% block head_extra %}{% endblock %}
+  </head>
+  <body>
+    <header>
+      <div class="wrap nav">
+        <a href="{{ frontend_base_url }}/" style="font-weight: 800; letter-spacing: -0.02em;">InsightPilot</a>
+        <a href="/blog/">Blog</a>
+      </div>
+    </header>
+    <main>
+      {% block content %}{% endblock %}
+    </main>
+  </body>
+</html>

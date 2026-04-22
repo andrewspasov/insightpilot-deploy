@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% load wagtailcore_tags wagtailimages_tags %}
+
+{% block title %}{% firstof page.seo_title page.title %} | InsightPilot{% endblock %}
+
+{% block meta %}
+  {% with canonical=page.canonical_url|default:request.build_absolute_uri %}
+    <meta name="description" content="{{ page.search_description|default:page.excerpt|truncatewords:40|escape }}" />
+    <link rel="canonical" href="{{ canonical }}">
+    <meta property="og:title" content="{% firstof page.seo_title page.title %}">
+    <meta property="og:description" content="{{ page.search_description|default:page.excerpt|truncatewords:40|escape }}">
+    <meta property="og:url" content="{{ canonical }}">
+    <meta property="og:type" content="article">
+    {% if page.get_meta_image %}
+      {% image page.get_meta_image fill-1200x630 as social %}
+      <meta property="og:image" content="{{ social.url }}">
+      <meta name="twitter:image" content="{{ social.url }}">
+    {% endif %}
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{% firstof page.seo_title page.title %}">
+    <meta name="twitter:description" content="{{ page.search_description|default:page.excerpt|truncatewords:40|escape }}">
+    {% if page.focus_keyword %}<meta name="keywords" content="{{ page.focus_keyword }}">{% endif %}
+  {% endwith %}
+{% endblock %}
+
+{% block content %}
+  <article class="grid grid-2" style="gap:18px; align-items:start;">
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <div class="card" style="background: linear-gradient(135deg, rgba(14,165,233,0.2), rgba(34,211,238,0.05)); border-color: rgba(255,255,255,0.1);">
+        <div class="pill" style="margin-bottom:10px;">{{ page.date|date:"M j, Y" }}</div>
+        <h1 style="margin:0; font-size:2.2rem; letter-spacing:-0.02em;">{{ page.title }}</h1>
+        <div class="muted" style="display:flex; gap:12px; flex-wrap:wrap; margin-top:8px;">
+          {% if page.author_name %}<span>By {{ page.author_name }}</span>{% endif %}
+          <span>{{ page.estimated_read_time }} min read</span>
+        </div>
+        {% if page.excerpt %}<p class="muted" style="margin:10px 0 0;">{{ page.excerpt }}</p>{% endif %}
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+          {% for cat in page.categories.all %}
+            <span class="pill" style="border-color: {{ cat.color|default:'#22d3ee' }}; color: {{ cat.color|default:'#22d3ee' }};">{% if cat.icon %}{{ cat.icon }} {% endif %}{{ cat.name }}</span>
+          {% endfor %}
+        </div>
+      </div>
+
+      {% if page.hero_image %}
+        {% image page.hero_image fill-1400x700 as hero %}
+        <figure style="margin:0;">
+          <img src="{{ hero.url }}" width="{{ hero.width }}" height="{{ hero.height }}" alt="{{ hero.alt|default:page.title }}" />
+        </figure>
+      {% endif %}
+
+      <div style="display:flex; flex-direction:column; gap:14px;">
+        {% for block in page.body %}
+          {% include_block block %}
+        {% endfor %}
+      </div>
+
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        {% for tag in page.tags.all %}
+          <span class="pill" style="background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1);">{{ tag.name }}</span>
+        {% endfor %}
+      </div>
+    </div>
+
+    <aside style="position:sticky; top:90px; display:flex; flex-direction:column; gap:12px;">
+      <div class="card">
+        <div style="font-weight:700; margin-bottom:6px;">Categories</div>
+        {% for cat in page.categories.all %}
+          <div class="muted">{% if cat.icon %}{{ cat.icon }} {% endif %}{{ cat.name }}</div>
+        {% empty %}
+          <div class="muted">No categories set.</div>
+        {% endfor %}
+      </div>
+      {% if page.focus_keyword %}
+        <div class="card">
+          <div class="muted">Focus keyword</div>
+          <div style="font-weight:700;">{{ page.focus_keyword }}</div>
+        </div>
+      {% endif %}
+    </aside>
+  </article>
+
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Article",
+      "headline": "{{ page.title|escapejs }}",
+      "description": "{{ page.search_description|default:page.excerpt|truncatewords:40|escapejs }}",
+      "author": "{{ page.author_name|default:'InsightPilot'|escapejs }}",
+      "datePublished": "{{ page.date|date:'c' }}",
+      "dateModified": "{{ page.last_published_at|date:'c' }}",
+      "mainEntityOfPage": "{{ page.canonical_url|default:request.build_absolute_uri|escapejs }}",
+      "image": "{% if page.get_meta_image %}{% image page.get_meta_image fill-1200x630 as json_img %}{{ json_img.url }}{% endif %}"
+    }
+  </script>
+{% endblock %}
