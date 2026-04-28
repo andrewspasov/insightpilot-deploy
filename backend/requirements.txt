@@ -3,6 +3,7 @@ djangorestframework==3.16.1
 djangorestframework_simplejwt==5.5.1
 django-cors-headers==4.6.0
 django-jazzmin==3.0.0
+gunicorn==23.0.0
 python-dotenv==1.0.1
 requests==2.32.3
 stripe==10.12.0
