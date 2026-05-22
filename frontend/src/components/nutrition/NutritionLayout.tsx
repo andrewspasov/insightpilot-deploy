@@ -6,6 +6,7 @@ import {
   ClipboardList,
   Lightbulb,
   FileText,
+  Sparkles,
   ArrowLeft,
   LogOut,
   ChevronLeft,
@@ -26,6 +27,7 @@ const nutritionMenuItems = [
   { label: "Logs", path: "/tools/nutrition/logs", icon: ClipboardList },
   { label: "Insights", path: "/tools/nutrition/insights", icon: Lightbulb },
   { label: "Reports", path: "/tools/nutrition/reports", icon: FileText },
+  { label: "InsightPilot AI", path: "/tools/nutrition/ai", icon: Sparkles },
   { label: "Back to InsightPilot Home", path: "/dashboard", icon: ArrowLeft },
 ];
 

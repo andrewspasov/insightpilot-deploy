@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
+import { Suspense, lazy, type ReactNode } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { GlobalLayout } from "@/components/GlobalLayout";
 import { NtrLayout } from "@/components/ntr/NtrLayout";
@@ -46,6 +47,13 @@ import NutritionReports from "./pages/nutrition/NutritionReports";
 import RequireAuth from "./components/RequireAuth";
 
 const queryClient = new QueryClient();
+const NutritionAI = lazy(() => import("./pages/nutrition/NutritionAI"));
+
+const LazyPage = ({ children }: { children: ReactNode }) => (
+  <Suspense fallback={<div className="text-sm text-muted-foreground">Loading...</div>}>
+    {children}
+  </Suspense>
+);
 
 const GlobalLayoutWrapper = () => (
   <GlobalLayout>
@@ -163,6 +171,14 @@ const App = () => (
             <Route path="logs" element={<NutritionLogs />} />
             <Route path="insights" element={<NutritionInsights />} />
             <Route path="reports" element={<NutritionReports />} />
+            <Route
+              path="ai"
+              element={
+                <LazyPage>
+                  <NutritionAI />
+                </LazyPage>
+              }
+            />
           </Route>
 
           {/* CATCH-ALL (always last) */}

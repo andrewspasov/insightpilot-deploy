@@ -36,6 +36,14 @@ def env_list(name: str, default: list[str]) -> list[str]:
         return default
     return [item.strip() for item in value.split(",") if item.strip()]
 
+
+def env_int(name: str, default: int) -> int:
+    raw_value = os.getenv(name, str(default)).strip()
+    try:
+        return int(raw_value)
+    except ValueError:
+        return default
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
@@ -90,6 +98,7 @@ INSTALLED_APPS = [
     "ntr",
     "billing",
     "nutrition",
+    "insight_ai",
 ]
 
 
@@ -272,6 +281,18 @@ YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "")
 
 # Nutrition external connectors
 USDA_FOODDATA_CENTRAL_API_KEY = os.getenv("USDA_FOODDATA_CENTRAL_API_KEY", "").strip()
+
+# InsightPilot AI (private nutrition AI test)
+INSIGHT_AI_PROVIDER = os.getenv("INSIGHT_AI_PROVIDER", "gemini").strip().lower()
+INSIGHT_AI_GEMINI_API_KEY = os.getenv("INSIGHT_AI_GEMINI_API_KEY", "").strip()
+INSIGHT_AI_MODEL = os.getenv("INSIGHT_AI_MODEL", "gemini-2.5-flash-lite").strip()
+INSIGHT_AI_OPENAI_API_KEY = os.getenv("INSIGHT_AI_OPENAI_API_KEY", os.getenv("OPENAI_API_KEY", "")).strip()
+INSIGHT_AI_OPENAI_MODEL = os.getenv("INSIGHT_AI_OPENAI_MODEL", "gpt-4.1-nano").strip()
+INSIGHT_AI_ALLOWED_EMAILS = os.getenv("INSIGHT_AI_ALLOWED_EMAILS", "").strip()
+INSIGHT_AI_MONTHLY_MESSAGE_LIMIT = env_int("INSIGHT_AI_MONTHLY_MESSAGE_LIMIT", 100)
+INSIGHT_AI_MONTHLY_TOKEN_LIMIT = env_int("INSIGHT_AI_MONTHLY_TOKEN_LIMIT", 100000)
+INSIGHT_AI_MAX_OUTPUT_TOKENS = env_int("INSIGHT_AI_MAX_OUTPUT_TOKENS", 700)
+INSIGHT_AI_TIMEOUT_SECONDS = env_int("INSIGHT_AI_TIMEOUT_SECONDS", 30)
 
 # MercadoLibre OAuth configuration (used by mercadolibre_client).
 MERCADOLIBRE_CLIENT_ID = os.getenv("MERCADOLIBRE_CLIENT_ID", "")

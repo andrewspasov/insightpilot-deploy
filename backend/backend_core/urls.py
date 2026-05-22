@@ -21,6 +21,7 @@ urlpatterns = [
     path("accounts/", include("accounts.urls")), # register
     path("api/ntr/", include("ntr.urls")),  # <-- add this line
     path("api/nutrition/", include("nutrition.urls")),
+    path("api/insight-ai/", include("insight_ai.urls")),
     re_path(
         r"^api/internal/ntr/run-track/?$",
         InternalRunTrackView.as_view(),
