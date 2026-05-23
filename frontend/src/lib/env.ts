@@ -1,7 +1,7 @@
 const DEFAULT_API_BASE_URL = "http://localhost:8000/api";
 
 function trimTrailingSlashes(value: string): string {
-  return value.replace(/\/+$/, "");
+  return value.trim().replace(/\/+$/, "");
 }
 
 function normalizePath(path: string): string {
