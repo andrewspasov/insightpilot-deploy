@@ -38,3 +38,50 @@ class InsightAIUsage(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user_id} {self.model} {self.status} {self.total_tokens}"
+
+
+class InsightAIAction(models.Model):
+    STATUS_PENDING = "pending"
+    STATUS_CONFIRMED = "confirmed"
+    STATUS_CANCELLED = "cancelled"
+    STATUS_EXPIRED = "expired"
+    STATUS_FAILED = "failed"
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_CONFIRMED, "Confirmed"),
+        (STATUS_CANCELLED, "Cancelled"),
+        (STATUS_EXPIRED, "Expired"),
+        (STATUS_FAILED, "Failed"),
+    ]
+
+    TYPE_LOG_MEAL = "log_meal"
+
+    ACTION_TYPE_CHOICES = [
+        (TYPE_LOG_MEAL, "Log meal"),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="insight_ai_actions",
+    )
+    action_type = models.CharField(max_length=60, choices=ACTION_TYPE_CHOICES)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    summary = models.CharField(max_length=300)
+    payload = models.JSONField(default=dict)
+    result_payload = models.JSONField(blank=True, default=dict)
+    error_message = models.TextField(blank=True, default="")
+    expires_at = models.DateTimeField()
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user", "status", "created_at"], name="insight_ai_action_user_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user_id} {self.action_type} {self.status}"

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import CustomFood, MealEntry, NutritionProfile, WeightEntry
+from .models import CustomFood, MealEntry, NutritionProfile, SavedMeal, SavedMealItem, WeightEntry
 
 
 @admin.register(NutritionProfile)
@@ -49,6 +49,20 @@ class MealEntryAdmin(admin.ModelAdmin):
     list_filter = ("meal_type", "food_source")
     search_fields = ("food_name", "brand_name", "owner__username", "owner__email")
     date_hierarchy = "entry_date"
+
+
+class SavedMealItemInline(admin.TabularInline):
+    model = SavedMealItem
+    extra = 0
+    readonly_fields = ("calories", "protein_grams", "carbs_grams", "fat_grams")
+
+
+@admin.register(SavedMeal)
+class SavedMealAdmin(admin.ModelAdmin):
+    list_display = ("name", "owner", "meal_type", "updated_at")
+    list_filter = ("meal_type",)
+    search_fields = ("name", "owner__username", "owner__email", "items__food_name")
+    inlines = [SavedMealItemInline]
 
 
 @admin.register(WeightEntry)

@@ -12,7 +12,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from billing.models import AccessPass, Customer, Subscription, SubscriptionItem, Tool
-from nutrition.models import CustomFood, MealEntry, WeightEntry
+from nutrition.models import CustomFood, MealEntry, SavedMeal, WeightEntry
 
 User = get_user_model()
 
@@ -71,6 +71,27 @@ class NutritionApiTests(APITestCase):
         )
         SubscriptionItem.objects.create(subscription=subscription, tool=tool)
 
+    def _demo_entry_payload(self, entry_date, meal_type="breakfast", food_name="Banana"):
+        return {
+            "entry_date": str(entry_date),
+            "meal_type": meal_type,
+            "food_source": "demo",
+            "external_food_id": food_name.lower(),
+            "food_name": food_name,
+            "brand_name": "",
+            "serving_description": "g",
+            "measurement_unit": "g",
+            "quantity": 200,
+            "grams_per_unit": 1.0,
+            "serving_calories": 0.89,
+            "serving_protein_grams": 0.011,
+            "serving_carbs_grams": 0.228,
+            "serving_fat_grams": 0.003,
+            "serving_fiber_grams": 0.026,
+            "serving_sugar_grams": 0.122,
+            "serving_sodium_mg": 0.01,
+        }
+
     def test_profile_and_overview_create_defaults(self):
         profile_response = self.client.get("/api/nutrition/profile/")
         self.assertEqual(profile_response.status_code, status.HTTP_200_OK)
@@ -96,25 +117,7 @@ class NutritionApiTests(APITestCase):
 
     def test_entry_create_updates_overview_totals(self):
         entry_date = str(timezone.localdate())
-        payload = {
-            "entry_date": entry_date,
-            "meal_type": "breakfast",
-            "food_source": "demo",
-            "external_food_id": "banana",
-            "food_name": "Banana",
-            "brand_name": "",
-            "serving_description": "g",
-            "measurement_unit": "g",
-            "quantity": 200,
-            "grams_per_unit": 1.0,
-            "serving_calories": 0.89,
-            "serving_protein_grams": 0.011,
-            "serving_carbs_grams": 0.228,
-            "serving_fat_grams": 0.003,
-            "serving_fiber_grams": 0.026,
-            "serving_sugar_grams": 0.122,
-            "serving_sodium_mg": 0.01,
-        }
+        payload = self._demo_entry_payload(entry_date)
 
         create_response = self.client.post("/api/nutrition/entries/", payload, format="json")
         self.assertEqual(create_response.status_code, status.HTTP_201_CREATED)
@@ -129,6 +132,73 @@ class NutritionApiTests(APITestCase):
         self.assertEqual(breakfast["meal_type"], "breakfast")
         self.assertEqual(len(breakfast["entries"]), 1)
         self.assertEqual(breakfast["entries"][0]["measurement_unit"], "g")
+
+    def test_copy_meal_duplicates_previous_day_entries(self):
+        today = timezone.localdate()
+        yesterday = today - timedelta(days=1)
+        create_response = self.client.post(
+            "/api/nutrition/entries/",
+            self._demo_entry_payload(yesterday, meal_type="lunch"),
+            format="json",
+        )
+        self.assertEqual(create_response.status_code, status.HTTP_201_CREATED)
+
+        copy_response = self.client.post(
+            "/api/nutrition/entries/copy-meal/",
+            {
+                "source_date": str(yesterday),
+                "target_date": str(today),
+                "source_meal_type": "lunch",
+                "target_meal_type": "lunch",
+            },
+            format="json",
+        )
+
+        self.assertEqual(copy_response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(len(copy_response.data), 1)
+        copied = MealEntry.objects.get(owner=self.user, entry_date=today, meal_type="lunch")
+        self.assertEqual(copied.food_name, "Banana")
+        self.assertEqual(copied.calories, 178.0)
+        self.assertEqual(copied.total_grams, 200.0)
+
+    def test_saved_meal_can_be_created_from_diary_and_logged(self):
+        today = timezone.localdate()
+        tomorrow = today + timedelta(days=1)
+        create_response = self.client.post(
+            "/api/nutrition/entries/",
+            self._demo_entry_payload(today, meal_type="breakfast", food_name="Greek Yogurt"),
+            format="json",
+        )
+        self.assertEqual(create_response.status_code, status.HTTP_201_CREATED)
+
+        save_response = self.client.post(
+            "/api/nutrition/saved-meals/save-from-diary/",
+            {
+                "name": "Protein breakfast",
+                "entry_date": str(today),
+                "meal_type": "breakfast",
+            },
+            format="json",
+        )
+        self.assertEqual(save_response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(save_response.data["name"], "Protein breakfast")
+        self.assertEqual(save_response.data["item_count"], 1)
+        self.assertEqual(save_response.data["totals"]["calories"], 178.0)
+        self.assertEqual(SavedMeal.objects.count(), 1)
+
+        log_response = self.client.post(
+            f"/api/nutrition/saved-meals/{save_response.data['id']}/log/",
+            {
+                "entry_date": str(tomorrow),
+                "meal_type": "snacks",
+            },
+            format="json",
+        )
+        self.assertEqual(log_response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(len(log_response.data), 1)
+        logged = MealEntry.objects.get(owner=self.user, entry_date=tomorrow, meal_type="snacks")
+        self.assertEqual(logged.food_name, "Greek Yogurt")
+        self.assertEqual(logged.calories, 178.0)
 
     def test_custom_food_supports_units_and_image_inputs(self):
         image_file = SimpleUploadedFile(

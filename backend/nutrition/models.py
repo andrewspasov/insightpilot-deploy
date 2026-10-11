@@ -49,6 +49,9 @@ class NutritionProfile(models.Model):
     protein_target_grams = models.FloatField(default=150.0)
     carbs_target_grams = models.FloatField(default=250.0)
     fat_target_grams = models.FloatField(default=70.0)
+    fiber_target_grams = models.FloatField(default=30.0)
+    sugar_limit_grams = models.FloatField(default=50.0)
+    sodium_limit_mg = models.FloatField(default=2300.0)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -212,6 +215,104 @@ class MealEntry(models.Model):
         super().save(*args, **kwargs)
 
 
+class SavedMeal(models.Model):
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="nutrition_saved_meals",
+    )
+    name = models.CharField(max_length=200)
+    meal_type = models.CharField(
+        max_length=20,
+        choices=MealEntry.MEAL_CHOICES,
+        blank=True,
+        default="",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at", "name"]
+        indexes = [
+            models.Index(fields=["owner", "name"], name="nutrition_saved_meal_name_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.owner}: {self.name}"
+
+
+class SavedMealItem(models.Model):
+    saved_meal = models.ForeignKey(
+        SavedMeal,
+        on_delete=models.CASCADE,
+        related_name="items",
+    )
+    order = models.PositiveIntegerField(default=0)
+
+    food_source = models.CharField(max_length=20, choices=MealEntry.SOURCE_CHOICES, default=MealEntry.SOURCE_USDA)
+    external_food_id = models.CharField(max_length=120, blank=True, default="")
+    food_name = models.CharField(max_length=200)
+    brand_name = models.CharField(max_length=200, blank=True, default="")
+    serving_description = models.CharField(max_length=120, default="1 serving")
+    measurement_unit = models.CharField(max_length=40, blank=True, default="serving")
+    quantity = models.FloatField(default=1.0, validators=[MinValueValidator(0.01)])
+    grams_per_unit = models.FloatField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0.01)],
+    )
+    total_grams = models.FloatField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0.0)],
+    )
+    image_url = models.URLField(blank=True, default="")
+
+    serving_calories = models.FloatField(default=0.0, validators=[MinValueValidator(0.0)])
+    serving_protein_grams = models.FloatField(default=0.0, validators=[MinValueValidator(0.0)])
+    serving_carbs_grams = models.FloatField(default=0.0, validators=[MinValueValidator(0.0)])
+    serving_fat_grams = models.FloatField(default=0.0, validators=[MinValueValidator(0.0)])
+    serving_fiber_grams = models.FloatField(default=0.0, validators=[MinValueValidator(0.0)])
+    serving_sugar_grams = models.FloatField(default=0.0, validators=[MinValueValidator(0.0)])
+    serving_sodium_mg = models.FloatField(default=0.0, validators=[MinValueValidator(0.0)])
+
+    calories = models.FloatField(default=0.0, validators=[MinValueValidator(0.0)])
+    protein_grams = models.FloatField(default=0.0, validators=[MinValueValidator(0.0)])
+    carbs_grams = models.FloatField(default=0.0, validators=[MinValueValidator(0.0)])
+    fat_grams = models.FloatField(default=0.0, validators=[MinValueValidator(0.0)])
+    fiber_grams = models.FloatField(default=0.0, validators=[MinValueValidator(0.0)])
+    sugar_grams = models.FloatField(default=0.0, validators=[MinValueValidator(0.0)])
+    sodium_mg = models.FloatField(default=0.0, validators=[MinValueValidator(0.0)])
+
+    class Meta:
+        ordering = ["order", "id"]
+        indexes = [
+            models.Index(fields=["saved_meal", "order"], name="nutrition_saved_item_order_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.saved_meal.name}: {self.food_name}"
+
+    def recalculate_totals(self):
+        multiplier = float(self.quantity or 0)
+        self.calories = round(self.serving_calories * multiplier, 2)
+        self.protein_grams = round(self.serving_protein_grams * multiplier, 2)
+        self.carbs_grams = round(self.serving_carbs_grams * multiplier, 2)
+        self.fat_grams = round(self.serving_fat_grams * multiplier, 2)
+        self.fiber_grams = round(self.serving_fiber_grams * multiplier, 2)
+        self.sugar_grams = round(self.serving_sugar_grams * multiplier, 2)
+        self.sodium_mg = round(self.serving_sodium_mg * multiplier, 2)
+        if self.grams_per_unit:
+            self.total_grams = round(self.grams_per_unit * multiplier, 2)
+        else:
+            self.total_grams = None
+
+    def save(self, *args, **kwargs):
+        self.recalculate_totals()
+        super().save(*args, **kwargs)
+
+
 class WeightEntry(models.Model):
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -239,3 +340,170 @@ class WeightEntry(models.Model):
 
     def __str__(self) -> str:
         return f"{self.owner} {self.entry_date}: {self.weight_kg} kg"
+
+
+class WaterEntry(models.Model):
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="nutrition_water_entries",
+    )
+    entry_date = models.DateField(default=default_entry_date)
+    total_ml = models.PositiveIntegerField(default=0)
+    target_ml = models.PositiveIntegerField(default=2000)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-entry_date"]
+        verbose_name_plural = "Water entries"
+        indexes = [
+            models.Index(fields=["owner", "entry_date"], name="nutr_water_owner_date_idx"),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["owner", "entry_date"],
+                name="nutr_water_owner_date_uniq",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.owner} {self.entry_date}: {self.total_ml} ml"
+
+
+class Recipe(models.Model):
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="nutrition_recipes",
+    )
+    name = models.CharField(max_length=200)
+    servings_count = models.FloatField(default=1.0, validators=[MinValueValidator(0.1)])
+    note = models.CharField(max_length=500, blank=True, default="")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at", "name"]
+        indexes = [
+            models.Index(fields=["owner", "name"], name="nutrition_recipe_name_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.owner}: {self.name}"
+
+
+class RecipeIngredient(models.Model):
+    recipe = models.ForeignKey(
+        Recipe,
+        on_delete=models.CASCADE,
+        related_name="ingredients",
+    )
+    order = models.PositiveIntegerField(default=0)
+
+    food_source = models.CharField(max_length=20, choices=MealEntry.SOURCE_CHOICES, default=MealEntry.SOURCE_USDA)
+    external_food_id = models.CharField(max_length=120, blank=True, default="")
+    food_name = models.CharField(max_length=200)
+    brand_name = models.CharField(max_length=200, blank=True, default="")
+    serving_description = models.CharField(max_length=120, default="1 serving")
+    measurement_unit = models.CharField(max_length=40, blank=True, default="serving")
+    quantity = models.FloatField(default=1.0, validators=[MinValueValidator(0.01)])
+    grams_per_unit = models.FloatField(null=True, blank=True, validators=[MinValueValidator(0.01)])
+    total_grams = models.FloatField(null=True, blank=True, validators=[MinValueValidator(0.0)])
+    image_url = models.URLField(blank=True, default="")
+
+    serving_calories = models.FloatField(default=0.0, validators=[MinValueValidator(0.0)])
+    serving_protein_grams = models.FloatField(default=0.0, validators=[MinValueValidator(0.0)])
+    serving_carbs_grams = models.FloatField(default=0.0, validators=[MinValueValidator(0.0)])
+    serving_fat_grams = models.FloatField(default=0.0, validators=[MinValueValidator(0.0)])
+    serving_fiber_grams = models.FloatField(default=0.0, validators=[MinValueValidator(0.0)])
+    serving_sugar_grams = models.FloatField(default=0.0, validators=[MinValueValidator(0.0)])
+    serving_sodium_mg = models.FloatField(default=0.0, validators=[MinValueValidator(0.0)])
+
+    calories = models.FloatField(default=0.0, validators=[MinValueValidator(0.0)])
+    protein_grams = models.FloatField(default=0.0, validators=[MinValueValidator(0.0)])
+    carbs_grams = models.FloatField(default=0.0, validators=[MinValueValidator(0.0)])
+    fat_grams = models.FloatField(default=0.0, validators=[MinValueValidator(0.0)])
+    fiber_grams = models.FloatField(default=0.0, validators=[MinValueValidator(0.0)])
+    sugar_grams = models.FloatField(default=0.0, validators=[MinValueValidator(0.0)])
+    sodium_mg = models.FloatField(default=0.0, validators=[MinValueValidator(0.0)])
+
+    class Meta:
+        ordering = ["order", "id"]
+        indexes = [
+            models.Index(fields=["recipe", "order"], name="nutrition_recipe_ing_order_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.recipe.name}: {self.food_name}"
+
+    def recalculate_totals(self):
+        multiplier = float(self.quantity or 0)
+        self.calories = round(self.serving_calories * multiplier, 2)
+        self.protein_grams = round(self.serving_protein_grams * multiplier, 2)
+        self.carbs_grams = round(self.serving_carbs_grams * multiplier, 2)
+        self.fat_grams = round(self.serving_fat_grams * multiplier, 2)
+        self.fiber_grams = round(self.serving_fiber_grams * multiplier, 2)
+        self.sugar_grams = round(self.serving_sugar_grams * multiplier, 2)
+        self.sodium_mg = round(self.serving_sodium_mg * multiplier, 2)
+        if self.grams_per_unit:
+            self.total_grams = round(self.grams_per_unit * multiplier, 2)
+        else:
+            self.total_grams = None
+
+    def save(self, *args, **kwargs):
+        self.recalculate_totals()
+        super().save(*args, **kwargs)
+
+
+class ExerciseEntry(models.Model):
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="nutrition_exercise_entries",
+    )
+    entry_date = models.DateField(default=default_entry_date)
+    name = models.CharField(max_length=200)
+    duration_min = models.PositiveIntegerField(default=30)
+    calories_burned = models.FloatField(default=0.0, validators=[MinValueValidator(0.0)])
+    note = models.CharField(max_length=240, blank=True, default="")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-entry_date", "-created_at"]
+        verbose_name_plural = "Exercise entries"
+        indexes = [
+            models.Index(fields=["owner", "entry_date"], name="nutr_exercise_owner_date_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.owner} {self.entry_date}: {self.name} ({self.calories_burned} kcal)"
+
+
+
+class FastingSession(models.Model):
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="nutrition_fasting_sessions",
+    )
+    started_at = models.DateTimeField(default=timezone.now)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    target_hours = models.FloatField(default=16.0, validators=[MinValueValidator(1.0)])
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-started_at"]
+        indexes = [
+            models.Index(fields=["owner", "started_at"], name="nutr_fast_owner_start_idx"),
+        ]
+
+    def __str__(self) -> str:
+        state = "active" if self.ended_at is None else "done"
+        return f"{self.owner} fast {self.started_at:%Y-%m-%d %H:%M} ({state})"

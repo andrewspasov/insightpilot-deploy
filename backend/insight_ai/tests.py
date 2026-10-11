@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+from datetime import timedelta
 from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
 from django.test import override_settings
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from billing.models import AccessPass, Customer, Subscription, SubscriptionItem, Tool
-from .models import InsightAIUsage
+from nutrition.models import MealEntry
+
+from .models import InsightAIAction, InsightAIUsage
 
 
 class InsightAIViewTests(APITestCase):
@@ -158,6 +162,7 @@ class InsightAIViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["provider"], "openai")
         self.assertIn("Greek yogurt", response.data["reply"])
+        self.assertIsNone(response.data["pending_action"])
         self.assertEqual(response.data["usage"]["total_tokens"], 65)
         self.assertEqual(InsightAIUsage.objects.count(), 1)
         usage = InsightAIUsage.objects.get()
@@ -168,6 +173,308 @@ class InsightAIViewTests(APITestCase):
         self.assertEqual(mock_post.call_args.args[0], "https://api.openai.com/v1/responses")
         self.assertEqual(mock_post.call_args.kwargs["headers"]["Authorization"], "Bearer test-openai-key")
         self.assertEqual(mock_post.call_args.kwargs["json"]["model"], "gpt-test")
+        self.assertEqual(mock_post.call_args.kwargs["json"]["text"]["format"]["type"], "json_schema")
+
+    @override_settings(
+        INSIGHT_AI_PROVIDER="openai",
+        INSIGHT_AI_OPENAI_API_KEY="test-openai-key",
+        INSIGHT_AI_OPENAI_MODEL="gpt-test",
+        INSIGHT_AI_ALLOWED_EMAILS="nutrition-ai@example.com",
+    )
+    @patch("insight_ai.services.requests.post")
+    def test_chat_creates_pending_log_meal_action_from_structured_output(self, mock_post):
+        mock_response = Mock(status_code=200)
+        mock_response.json.return_value = {
+            "output": [
+                {
+                    "type": "message",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": (
+                                '{"reply":"I prepared this for review.","action_type":"log_meal",'
+                                '"action_summary":"Log 200g chicken breast to breakfast today.",'
+                                '"meal_payload":{"entry_date":"2026-05-31","meal_type":"breakfast",'
+                                '"food_name":"chicken breast","brand_name":"","quantity":200,"unit":"g",'
+                                '"calories":330,"protein_grams":62,"carbs_grams":0,"fat_grams":7,'
+                                '"fiber_grams":0,"sugar_grams":0,"sodium_mg":120}}'
+                            ),
+                        }
+                    ],
+                }
+            ],
+            "usage": {
+                "input_tokens": 75,
+                "output_tokens": 45,
+                "total_tokens": 120,
+            },
+        }
+        mock_post.return_value = mock_response
+
+        response = self.client.post(
+            "/api/insight-ai/chat/",
+            {"message": "Log 200g chicken breast for breakfast today."},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["reply"], "I prepared this for review.")
+        self.assertEqual(MealEntry.objects.count(), 0)
+        self.assertEqual(InsightAIAction.objects.count(), 1)
+        action = InsightAIAction.objects.get()
+        self.assertEqual(action.status, InsightAIAction.STATUS_PENDING)
+        self.assertEqual(action.payload["food_name"], "chicken breast")
+        self.assertEqual(response.data["pending_action"]["id"], action.id)
+
+    @override_settings(
+        INSIGHT_AI_PROVIDER="openai",
+        INSIGHT_AI_OPENAI_API_KEY="test-openai-key",
+        INSIGHT_AI_OPENAI_MODEL="gpt-test",
+        INSIGHT_AI_ALLOWED_EMAILS="nutrition-ai@example.com",
+    )
+    @patch("insight_ai.services.requests.post")
+    def test_chat_uses_local_today_when_model_returns_wrong_year(self, mock_post):
+        mock_response = Mock(status_code=200)
+        mock_response.json.return_value = {
+            "output": [
+                {
+                    "type": "message",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": (
+                                '{"reply":"Sure, I prepared that for review.","action_type":"log_meal",'
+                                '"action_summary":"Log 50g rice to dinner today.",'
+                                '"meal_payload":{"entry_date":"2023-05-31","meal_type":"dinner",'
+                                '"food_name":"rice","brand_name":"","quantity":50,"unit":"g",'
+                                '"calories":65,"protein_grams":1.3,"carbs_grams":14.8,"fat_grams":0.1,'
+                                '"fiber_grams":0.3,"sugar_grams":0.1,"sodium_mg":1}}'
+                            ),
+                        }
+                    ],
+                }
+            ],
+            "usage": {
+                "input_tokens": 75,
+                "output_tokens": 45,
+                "total_tokens": 120,
+            },
+        }
+        mock_post.return_value = mock_response
+
+        response = self.client.post(
+            "/api/insight-ai/chat/",
+            {"message": "Can you put in 50 grams of rice for me for dinner today?"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        action = InsightAIAction.objects.get()
+        self.assertEqual(action.payload["entry_date"], timezone.localdate().isoformat())
+        self.assertEqual(action.payload["meal_type"], "dinner")
+        self.assertEqual(action.payload["food_name"], "rice")
+
+    @override_settings(
+        INSIGHT_AI_PROVIDER="openai",
+        INSIGHT_AI_OPENAI_API_KEY="test-openai-key",
+        INSIGHT_AI_OPENAI_MODEL="gpt-test",
+        INSIGHT_AI_ALLOWED_EMAILS="nutrition-ai@example.com",
+    )
+    @patch("insight_ai.services.requests.post")
+    def test_chat_falls_back_to_local_log_meal_parser(self, mock_post):
+        mock_response = Mock(status_code=200)
+        mock_response.json.return_value = {
+            "output": [
+                {
+                    "type": "message",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": (
+                                '{"reply":"Please confirm your preferred brand.",'
+                                '"action_type":"none","action_summary":"",'
+                                '"meal_payload":{"entry_date":"2026-05-31","meal_type":"breakfast",'
+                                '"food_name":"","brand_name":"","quantity":0,"unit":"g",'
+                                '"calories":0,"protein_grams":0,"carbs_grams":0,"fat_grams":0,'
+                                '"fiber_grams":0,"sugar_grams":0,"sodium_mg":0}}'
+                            ),
+                        }
+                    ],
+                }
+            ],
+            "usage": {
+                "input_tokens": 75,
+                "output_tokens": 20,
+                "total_tokens": 95,
+            },
+        }
+        mock_post.return_value = mock_response
+
+        response = self.client.post(
+            "/api/insight-ai/chat/",
+            {"message": "Log 200g chicken breast for breakfast today"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["reply"], "I prepared this for review using a generic nutrition estimate.")
+        self.assertEqual(InsightAIAction.objects.count(), 1)
+        action = InsightAIAction.objects.get()
+        self.assertEqual(action.payload["food_name"], "chicken breast")
+        self.assertEqual(action.payload["calories"], 330)
+        self.assertEqual(action.payload["protein_grams"], 62)
+        self.assertEqual(response.data["pending_action"]["id"], action.id)
+
+    @override_settings(
+        INSIGHT_AI_PROVIDER="openai",
+        INSIGHT_AI_OPENAI_API_KEY="test-openai-key",
+        INSIGHT_AI_OPENAI_MODEL="gpt-test",
+        INSIGHT_AI_ALLOWED_EMAILS="nutrition-ai@example.com",
+    )
+    @patch("insight_ai.services.requests.post")
+    def test_chat_creates_pending_log_meal_action(self, mock_post):
+        mock_response = Mock(status_code=200)
+        mock_response.json.return_value = {
+            "output": [
+                {
+                    "type": "message",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": (
+                                '{"reply":"I prepared this meal for review.",'
+                                '"action":{"type":"log_meal","summary":"Log 200g chicken breast to breakfast.",'
+                                '"payload":{"entry_date":"2026-05-31","meal_type":"breakfast",'
+                                '"food_name":"chicken breast","quantity":200,"unit":"g",'
+                                '"calories":330,"protein_grams":62,"carbs_grams":0,"fat_grams":7}}}'
+                            ),
+                        }
+                    ],
+                }
+            ],
+            "usage": {
+                "input_tokens": 75,
+                "output_tokens": 45,
+                "total_tokens": 120,
+            },
+        }
+        mock_post.return_value = mock_response
+
+        response = self.client.post(
+            "/api/insight-ai/chat/",
+            {"message": "Log 200g chicken breast for breakfast."},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["reply"], "I prepared this meal for review.")
+        self.assertEqual(MealEntry.objects.count(), 0)
+        self.assertEqual(InsightAIAction.objects.count(), 1)
+        action = InsightAIAction.objects.get()
+        self.assertEqual(action.status, InsightAIAction.STATUS_PENDING)
+        self.assertEqual(action.action_type, InsightAIAction.TYPE_LOG_MEAL)
+        self.assertEqual(action.payload["meal_type"], "breakfast")
+        self.assertEqual(action.payload["quantity"], 200)
+        self.assertEqual(response.data["pending_action"]["id"], action.id)
+
+    @override_settings(
+        INSIGHT_AI_ALLOWED_EMAILS="nutrition-ai@example.com",
+    )
+    def test_confirm_pending_log_meal_action_creates_entry(self):
+        action = InsightAIAction.objects.create(
+            user=self.user,
+            action_type=InsightAIAction.TYPE_LOG_MEAL,
+            summary="Log 200g chicken breast to breakfast.",
+            payload={
+                "entry_date": "2026-05-31",
+                "meal_type": "breakfast",
+                "food_name": "chicken breast",
+                "quantity": 200,
+                "unit": "g",
+                "calories": 330,
+                "protein_grams": 62,
+                "carbs_grams": 0,
+                "fat_grams": 7,
+                "fiber_grams": 0,
+                "sugar_grams": 0,
+                "sodium_mg": 120,
+            },
+            expires_at=timezone.now() + timedelta(hours=1),
+        )
+
+        response = self.client.post(f"/api/insight-ai/actions/{action.id}/confirm/", {}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        action.refresh_from_db()
+        self.assertEqual(action.status, InsightAIAction.STATUS_CONFIRMED)
+        self.assertEqual(MealEntry.objects.count(), 1)
+        entry = MealEntry.objects.get()
+        self.assertEqual(entry.food_name, "chicken breast")
+        self.assertEqual(entry.meal_type, "breakfast")
+        self.assertEqual(entry.serving_description, "g")
+        self.assertEqual(entry.servings, 200)
+        self.assertEqual(entry.grams_per_unit, 1.0)
+        self.assertEqual(entry.calories, 330)
+        self.assertEqual(entry.protein_grams, 62)
+        self.assertEqual(response.data["action"]["result_payload"]["entry"]["id"], entry.id)
+
+    @override_settings(
+        INSIGHT_AI_ALLOWED_EMAILS="nutrition-ai@example.com",
+    )
+    def test_cancel_pending_action_does_not_create_entry(self):
+        action = InsightAIAction.objects.create(
+            user=self.user,
+            action_type=InsightAIAction.TYPE_LOG_MEAL,
+            summary="Log 200g chicken breast to breakfast.",
+            payload={
+                "entry_date": "2026-05-31",
+                "meal_type": "breakfast",
+                "food_name": "chicken breast",
+                "quantity": 200,
+                "unit": "g",
+                "calories": 330,
+                "protein_grams": 62,
+                "carbs_grams": 0,
+                "fat_grams": 7,
+            },
+            expires_at=timezone.now() + timedelta(hours=1),
+        )
+
+        response = self.client.post(f"/api/insight-ai/actions/{action.id}/cancel/", {}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        action.refresh_from_db()
+        self.assertEqual(action.status, InsightAIAction.STATUS_CANCELLED)
+        self.assertEqual(MealEntry.objects.count(), 0)
+
+    @override_settings(
+        INSIGHT_AI_ALLOWED_EMAILS="nutrition-ai@example.com",
+    )
+    def test_user_cannot_confirm_another_users_pending_action(self):
+        User = get_user_model()
+        other_user = User.objects.create_user(
+            username="other-ai-user",
+            email="other-ai@example.com",
+            password="password123",
+        )
+        action = InsightAIAction.objects.create(
+            user=other_user,
+            action_type=InsightAIAction.TYPE_LOG_MEAL,
+            summary="Log 200g chicken breast to breakfast.",
+            payload={
+                "entry_date": "2026-05-31",
+                "meal_type": "breakfast",
+                "food_name": "chicken breast",
+                "quantity": 200,
+                "unit": "g",
+            },
+            expires_at=timezone.now() + timedelta(hours=1),
+        )
+
+        response = self.client.post(f"/api/insight-ai/actions/{action.id}/confirm/", {}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(MealEntry.objects.count(), 0)
 
     @override_settings(
         INSIGHT_AI_PROVIDER="gemini",

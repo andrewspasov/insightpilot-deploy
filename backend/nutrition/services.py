@@ -38,6 +38,13 @@ UNIT_LABELS = {
     "serving": "serving",
 }
 
+VOLUME_UNIT_FACTORS = {
+    "ml": 1.0,
+    "cup": 236.588,
+    "tbsp": 14.7868,
+    "tsp": 4.92892,
+}
+
 OPEN_FOOD_FACTS_IMAGE_CACHE: dict[str, str | None] = {}
 
 LOCAL_FOOD_FALLBACKS = [
@@ -273,6 +280,22 @@ def _append_unit_option(options: list[dict], option: dict):
     options.append(option)
 
 
+def _entry_unit_label(entry: MealEntry, measurement_unit: str) -> str:
+    label = (entry.serving_description or _unit_label(measurement_unit)).strip()
+    match = re.match(r"^(\d+(?:\.\d+)?)\s+(.+)$", label)
+    if not match:
+        return label
+
+    try:
+        label_quantity = float(match.group(1))
+    except ValueError:
+        return label
+
+    if label_quantity == float(entry.servings or 0):
+        return match.group(2).strip()
+    return label
+
+
 def _build_unit_option(
     *,
     key: str,
@@ -388,19 +411,19 @@ def _build_volume_unit_options(per_ml_nutrients: dict) -> list[dict]:
         _build_unit_option(
             key="cup",
             label="cup",
-            nutrients=_scale_nutrients(per_ml_nutrients, 236.588),
+            nutrients=_scale_nutrients(per_ml_nutrients, VOLUME_UNIT_FACTORS["cup"]),
             grams_per_unit=None,
         ),
         _build_unit_option(
             key="tbsp",
             label="tbsp",
-            nutrients=_scale_nutrients(per_ml_nutrients, 14.7868),
+            nutrients=_scale_nutrients(per_ml_nutrients, VOLUME_UNIT_FACTORS["tbsp"]),
             grams_per_unit=None,
         ),
         _build_unit_option(
             key="tsp",
             label="tsp",
-            nutrients=_scale_nutrients(per_ml_nutrients, 4.92892),
+            nutrients=_scale_nutrients(per_ml_nutrients, VOLUME_UNIT_FACTORS["tsp"]),
             grams_per_unit=None,
         ),
     ]
@@ -458,6 +481,43 @@ def _lookup_open_food_facts_image(barcode: str | None) -> str | None:
     return image_url
 
 
+def build_meal_entry_unit_options(entry: MealEntry) -> list[dict]:
+    reference_nutrients = _build_nutrient_payload(
+        calories=entry.serving_calories,
+        protein_grams=entry.serving_protein_grams,
+        carbs_grams=entry.serving_carbs_grams,
+        fat_grams=entry.serving_fat_grams,
+        fiber_grams=entry.serving_fiber_grams,
+        sugar_grams=entry.serving_sugar_grams,
+        sodium_mg=entry.serving_sodium_mg,
+    )
+    options: list[dict] = []
+    measurement_unit = _normalize_unit_key(entry.measurement_unit or "serving")
+
+    _append_unit_option(
+        options,
+        _build_unit_option(
+            key=measurement_unit,
+            label=_entry_unit_label(entry, measurement_unit),
+            nutrients=reference_nutrients,
+            grams_per_unit=entry.grams_per_unit,
+        ),
+    )
+
+    if entry.grams_per_unit:
+        per_gram_nutrients = _scale_nutrients(reference_nutrients, 1 / float(entry.grams_per_unit))
+        for option in _build_weight_unit_options(per_gram_nutrients):
+            _append_unit_option(options, option)
+
+    volume_factor = VOLUME_UNIT_FACTORS.get(measurement_unit)
+    if volume_factor:
+        per_ml_nutrients = _scale_nutrients(reference_nutrients, 1 / volume_factor)
+        for option in _build_volume_unit_options(per_ml_nutrients):
+            _append_unit_option(options, option)
+
+    return options
+
+
 def build_custom_food_unit_options(food: CustomFood) -> list[dict]:
     reference_nutrients = _build_nutrient_payload(
         calories=food.calories,
@@ -512,36 +572,7 @@ def _serialize_custom_food(food: CustomFood, request=None) -> dict:
 
 
 def _serialize_recent_entry(entry: MealEntry) -> dict:
-    reference_nutrients = _build_nutrient_payload(
-        calories=entry.serving_calories,
-        protein_grams=entry.serving_protein_grams,
-        carbs_grams=entry.serving_carbs_grams,
-        fat_grams=entry.serving_fat_grams,
-        fiber_grams=entry.serving_fiber_grams,
-        sugar_grams=entry.serving_sugar_grams,
-        sodium_mg=entry.serving_sodium_mg,
-    )
-    options: list[dict] = []
-
-    if entry.grams_per_unit:
-        per_gram_nutrients = _scale_nutrients(reference_nutrients, 1 / float(entry.grams_per_unit))
-        for option in _build_weight_unit_options(per_gram_nutrients):
-            _append_unit_option(options, option)
-
-    if entry.measurement_unit == "ml":
-        for option in _build_volume_unit_options(reference_nutrients):
-            _append_unit_option(options, option)
-
-    _append_unit_option(
-        options,
-        _build_unit_option(
-            key=entry.measurement_unit or "serving",
-            label=entry.serving_description or _unit_label(entry.measurement_unit or "serving"),
-            nutrients=reference_nutrients,
-            grams_per_unit=entry.grams_per_unit,
-        ),
-    )
-
+    options = build_meal_entry_unit_options(entry)
     return _build_search_result(
         result_id=f"recent:{entry.id}",
         food_source=MealEntry.SOURCE_RECENT,

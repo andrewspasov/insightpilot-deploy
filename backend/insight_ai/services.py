@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
@@ -42,6 +43,7 @@ class AIProviderResult:
     completion_tokens: int
     total_tokens: int
     raw_usage: dict[str, Any]
+    proposed_action: dict[str, Any] | None = None
 
 
 VALID_AI_PROVIDERS = {"gemini", "openai"}
@@ -256,10 +258,20 @@ def _system_instruction() -> str:
     return (
         "You are InsightPilot AI, a private AI assistant inside the InsightPilot nutrition app. "
         "Use the provided nutrition context to answer clearly and practically. "
-        "You are read-only: do not claim that you logged, edited, deleted, or changed app data. "
+        "You can prepare app actions, but the app will only save changes after the user confirms. "
+        "Never claim that you logged, edited, deleted, or changed app data until the user confirms. "
         "Do not provide medical diagnosis or emergency advice. "
         "If the user asks for medical or clinical guidance, suggest talking to a qualified professional. "
-        "Keep answers concise, specific, and action-oriented."
+        "Keep answers concise, specific, and action-oriented. "
+        "Always return JSON matching the provided response schema. "
+        "Use meal_type breakfast, lunch, dinner, or snacks. Use total nutrition values for the full quantity. "
+        "For common foods, estimate reasonable generic nutrition values and prepare the action for review. "
+        "Do not ask the user to provide calories or macros for common foods. "
+        "When the user asks to log a meal and gives enough detail, set action_type to log_meal and fill meal_payload. "
+        "If the food, quantity, or meal type is missing, ask a short clarifying question and set action_type to none. "
+        "If the user attaches a photo, describe the food you see and estimate the portion size. "
+        "If they ask you to log it, set action_type to log_meal using your estimate from the image; "
+        "if the meal type is unclear, infer it from the time of day and say which one you assumed."
     )
 
 
@@ -326,19 +338,28 @@ def _sanitize_gemini_history(history: list[dict[str, str]]) -> list[dict[str, An
     return contents
 
 
-def _build_gemini_payload(message: str, history: list[dict[str, str]], context: dict[str, Any]) -> dict[str, Any]:
+def _build_gemini_payload(
+    message: str,
+    history: list[dict[str, str]],
+    context: dict[str, Any],
+    image_base64: str = "",
+    mime_type: str = "image/jpeg",
+) -> dict[str, Any]:
     context_text = _context_as_text(context)
     current_message = (
         "Current nutrition context from InsightPilot:\n"
         f"{context_text}\n\n"
         "User message:\n"
-        f"{message}"
+        f"{message or '(the user sent an image without text)'}"
     )
+    parts: list[dict[str, Any]] = [{"text": current_message}]
+    if image_base64:
+        parts.append({"inline_data": {"mime_type": mime_type, "data": image_base64}})
     return {
         "system_instruction": {"parts": {"text": _system_instruction()}},
         "contents": [
             *_sanitize_gemini_history(history),
-            {"role": "user", "parts": [{"text": current_message}]},
+            {"role": "user", "parts": parts},
         ],
         "generationConfig": {
             "temperature": 0.4,
@@ -397,23 +418,109 @@ def _sanitize_openai_history(history: list[dict[str, str]]) -> list[dict[str, st
     return contents
 
 
-def _build_openai_payload(message: str, history: list[dict[str, str]], context: dict[str, Any]) -> dict[str, Any]:
+def _build_openai_payload(
+    message: str,
+    history: list[dict[str, str]],
+    context: dict[str, Any],
+    image_base64: str = "",
+    mime_type: str = "image/jpeg",
+) -> dict[str, Any]:
     context_text = _context_as_text(context)
     current_message = (
         "Current nutrition context from InsightPilot:\n"
         f"{context_text}\n\n"
         "User message:\n"
-        f"{message}"
+        f"{message or '(the user sent an image without text)'}"
     )
+    if image_base64:
+        user_content: Any = [
+            {"type": "input_text", "text": current_message},
+            {
+                "type": "input_image",
+                "image_url": f"data:{mime_type};base64,{image_base64}",
+            },
+        ]
+    else:
+        user_content = current_message
     return {
         "model": get_ai_model("openai"),
         "instructions": _system_instruction(),
         "input": [
             *_sanitize_openai_history(history),
-            {"role": "user", "content": current_message},
+            {"role": "user", "content": user_content},
         ],
+        "text": {"format": _openai_response_format()},
         "max_output_tokens": _setting_int("INSIGHT_AI_MAX_OUTPUT_TOKENS", 700),
         "store": False,
+    }
+
+
+def _openai_response_format() -> dict[str, Any]:
+    return {
+        "type": "json_schema",
+        "name": "insight_ai_response",
+        "description": "InsightPilot AI chat reply and optional nutrition action.",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "reply": {
+                    "type": "string",
+                    "description": "Short user-facing assistant message.",
+                },
+                "action_type": {
+                    "type": "string",
+                    "enum": ["none", "log_meal"],
+                    "description": "Use log_meal only when enough detail exists to prepare a meal log action.",
+                },
+                "action_summary": {
+                    "type": "string",
+                    "description": "Human-readable action review summary, or empty string when action_type is none.",
+                },
+                "meal_payload": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "entry_date": {
+                            "type": "string",
+                            "description": "ISO date YYYY-MM-DD. Use today's date from context when the user says today.",
+                        },
+                        "meal_type": {
+                            "type": "string",
+                            "enum": ["breakfast", "lunch", "dinner", "snacks"],
+                        },
+                        "food_name": {"type": "string"},
+                        "brand_name": {"type": "string"},
+                        "quantity": {"type": "number"},
+                        "unit": {"type": "string"},
+                        "calories": {"type": "number"},
+                        "protein_grams": {"type": "number"},
+                        "carbs_grams": {"type": "number"},
+                        "fat_grams": {"type": "number"},
+                        "fiber_grams": {"type": "number"},
+                        "sugar_grams": {"type": "number"},
+                        "sodium_mg": {"type": "number"},
+                    },
+                    "required": [
+                        "entry_date",
+                        "meal_type",
+                        "food_name",
+                        "brand_name",
+                        "quantity",
+                        "unit",
+                        "calories",
+                        "protein_grams",
+                        "carbs_grams",
+                        "fat_grams",
+                        "fiber_grams",
+                        "sugar_grams",
+                        "sodium_mg",
+                    ],
+                },
+            },
+            "required": ["reply", "action_type", "action_summary", "meal_payload"],
+        },
     }
 
 
@@ -460,14 +567,70 @@ def _extract_openai_error_message(response: requests.Response) -> str:
     return "OpenAI returned an error."
 
 
+def _load_json_object(text: str) -> dict[str, Any] | None:
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        lines = stripped.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].startswith("```"):
+            lines = lines[:-1]
+        stripped = "\n".join(lines).strip()
+
+    candidates = [stripped]
+    first_brace = stripped.find("{")
+    last_brace = stripped.rfind("}")
+    if first_brace != -1 and last_brace > first_brace:
+        candidates.append(stripped[first_brace : last_brace + 1])
+
+    for candidate in candidates:
+        try:
+            data = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(data, dict):
+            return data
+    return None
+
+
+def _parse_agent_response(text: str) -> tuple[str, dict[str, Any] | None]:
+    data = _load_json_object(text)
+    if not data or "reply" not in data:
+        return text, None
+
+    reply = str(data.get("reply") or "").strip() or text
+
+    action_type = str(data.get("action_type") or "none").strip()
+    meal_payload = data.get("meal_payload")
+    if action_type == "log_meal" and isinstance(meal_payload, dict):
+        return reply, {
+            "type": "log_meal",
+            "summary": str(data.get("action_summary") or "").strip(),
+            "payload": meal_payload,
+        }
+
+    action = data.get("action")
+    if not isinstance(action, dict):
+        return reply, None
+    return reply, action
+
+
 def _preview(text: str, limit: int = 600) -> str:
     cleaned = " ".join(text.split())
     return cleaned[:limit]
 
 
-def call_gemini(user, message: str, history: list[dict[str, str]]) -> AIProviderResult:
+def call_gemini(
+    user,
+    message: str,
+    history: list[dict[str, str]],
+    image_base64: str = "",
+    mime_type: str = "image/jpeg",
+) -> AIProviderResult:
     model = get_ai_model("gemini")
-    payload = _build_gemini_payload(message, history, build_nutrition_context(user))
+    payload = _build_gemini_payload(
+        message, history, build_nutrition_context(user), image_base64, mime_type
+    )
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     timeout = _setting_int("INSIGHT_AI_TIMEOUT_SECONDS", 30)
 
@@ -518,6 +681,7 @@ def call_gemini(user, message: str, history: list[dict[str, str]]) -> AIProvider
         )
         raise AIProviderRequestError("Gemini returned a response the backend could not read.") from exc
     text = _extract_gemini_text(data)
+    reply_text, proposed_action = _parse_agent_response(text)
     usage = _extract_gemini_usage(data)
 
     InsightAIUsage.objects.create(
@@ -526,18 +690,31 @@ def call_gemini(user, message: str, history: list[dict[str, str]]) -> AIProvider
         model=model,
         status=InsightAIUsage.STATUS_SUCCESS,
         message_preview=_preview(message),
-        response_preview=_preview(text),
+        response_preview=_preview(reply_text),
         prompt_tokens=usage["prompt_tokens"],
         completion_tokens=usage["completion_tokens"],
         total_tokens=usage["total_tokens"],
     )
 
-    return AIProviderResult(text=text, raw_usage=data.get("usageMetadata") or {}, **usage)
+    return AIProviderResult(
+        text=reply_text,
+        raw_usage=data.get("usageMetadata") or {},
+        proposed_action=proposed_action,
+        **usage,
+    )
 
 
-def call_openai(user, message: str, history: list[dict[str, str]]) -> AIProviderResult:
+def call_openai(
+    user,
+    message: str,
+    history: list[dict[str, str]],
+    image_base64: str = "",
+    mime_type: str = "image/jpeg",
+) -> AIProviderResult:
     model = get_ai_model("openai")
-    payload = _build_openai_payload(message, history, build_nutrition_context(user))
+    payload = _build_openai_payload(
+        message, history, build_nutrition_context(user), image_base64, mime_type
+    )
     timeout = _setting_int("INSIGHT_AI_TIMEOUT_SECONDS", 30)
 
     try:
@@ -588,6 +765,7 @@ def call_openai(user, message: str, history: list[dict[str, str]]) -> AIProvider
         raise AIProviderRequestError("OpenAI returned a response the backend could not read.") from exc
 
     text = _extract_openai_text(data)
+    reply_text, proposed_action = _parse_agent_response(text)
     usage = _extract_openai_usage(data)
 
     InsightAIUsage.objects.create(
@@ -596,16 +774,27 @@ def call_openai(user, message: str, history: list[dict[str, str]]) -> AIProvider
         model=model,
         status=InsightAIUsage.STATUS_SUCCESS,
         message_preview=_preview(message),
-        response_preview=_preview(text),
+        response_preview=_preview(reply_text),
         prompt_tokens=usage["prompt_tokens"],
         completion_tokens=usage["completion_tokens"],
         total_tokens=usage["total_tokens"],
     )
 
-    return AIProviderResult(text=text, raw_usage=data.get("usage") or {}, **usage)
+    return AIProviderResult(
+        text=reply_text,
+        raw_usage=data.get("usage") or {},
+        proposed_action=proposed_action,
+        **usage,
+    )
 
 
-def call_ai(user, message: str, history: list[dict[str, str]]) -> AIProviderResult:
+def call_ai(
+    user,
+    message: str,
+    history: list[dict[str, str]],
+    image_base64: str = "",
+    mime_type: str = "image/jpeg",
+) -> AIProviderResult:
     if get_ai_provider() == "openai":
-        return call_openai(user, message, history)
-    return call_gemini(user, message, history)
+        return call_openai(user, message, history, image_base64, mime_type)
+    return call_gemini(user, message, history, image_base64, mime_type)

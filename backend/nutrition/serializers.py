@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from rest_framework import serializers
 
-from .models import CustomFood, MealEntry, NutritionProfile, WeightEntry
+from .models import CustomFood, ExerciseEntry, FastingSession, MealEntry, NutritionProfile, Recipe, RecipeIngredient, SavedMeal, SavedMealItem, WaterEntry, WeightEntry
 
 
 def _resolve_image_url(obj, request=None):
@@ -44,6 +44,9 @@ class NutritionProfileSerializer(serializers.ModelSerializer):
             "protein_target_grams",
             "carbs_target_grams",
             "fat_target_grams",
+            "fiber_target_grams",
+            "sugar_limit_grams",
+            "sodium_limit_mg",
             "created_at",
             "updated_at",
         ]
@@ -123,6 +126,8 @@ class CustomFoodSerializer(serializers.ModelSerializer):
 
 class MealEntrySerializer(serializers.ModelSerializer):
     quantity = serializers.FloatField(source="servings", required=False, min_value=0.01)
+    available_units = serializers.SerializerMethodField()
+    default_unit_key = serializers.SerializerMethodField()
 
     class Meta:
         model = MealEntry
@@ -155,6 +160,8 @@ class MealEntrySerializer(serializers.ModelSerializer):
             "fiber_grams",
             "sugar_grams",
             "sodium_mg",
+            "available_units",
+            "default_unit_key",
             "created_at",
             "updated_at",
         ]
@@ -169,6 +176,8 @@ class MealEntrySerializer(serializers.ModelSerializer):
             "sugar_grams",
             "sodium_mg",
             "total_grams",
+            "available_units",
+            "default_unit_key",
             "created_at",
             "updated_at",
         ]
@@ -183,6 +192,91 @@ class MealEntrySerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("quantity must be greater than 0.")
         return value
 
+    def get_available_units(self, obj):
+        from .services import build_meal_entry_unit_options
+
+        return build_meal_entry_unit_options(obj)
+
+    def get_default_unit_key(self, obj):
+        return obj.measurement_unit or "serving"
+
+
+class SavedMealItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SavedMealItem
+        fields = [
+            "id",
+            "order",
+            "food_source",
+            "external_food_id",
+            "food_name",
+            "brand_name",
+            "serving_description",
+            "measurement_unit",
+            "quantity",
+            "grams_per_unit",
+            "total_grams",
+            "image_url",
+            "serving_calories",
+            "serving_protein_grams",
+            "serving_carbs_grams",
+            "serving_fat_grams",
+            "serving_fiber_grams",
+            "serving_sugar_grams",
+            "serving_sodium_mg",
+            "calories",
+            "protein_grams",
+            "carbs_grams",
+            "fat_grams",
+            "fiber_grams",
+            "sugar_grams",
+            "sodium_mg",
+        ]
+        read_only_fields = fields
+
+
+class SavedMealSerializer(serializers.ModelSerializer):
+    items = SavedMealItemSerializer(many=True, read_only=True)
+    item_count = serializers.SerializerMethodField()
+    totals = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SavedMeal
+        fields = [
+            "id",
+            "name",
+            "meal_type",
+            "item_count",
+            "totals",
+            "items",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "item_count", "totals", "items", "created_at", "updated_at"]
+
+    def get_item_count(self, obj):
+        return obj.items.count()
+
+    def get_totals(self, obj):
+        totals = {
+            "calories": 0.0,
+            "protein_grams": 0.0,
+            "carbs_grams": 0.0,
+            "fat_grams": 0.0,
+            "fiber_grams": 0.0,
+            "sugar_grams": 0.0,
+            "sodium_mg": 0.0,
+        }
+        for item in obj.items.all():
+            totals["calories"] += item.calories
+            totals["protein_grams"] += item.protein_grams
+            totals["carbs_grams"] += item.carbs_grams
+            totals["fat_grams"] += item.fat_grams
+            totals["fiber_grams"] += item.fiber_grams
+            totals["sugar_grams"] += item.sugar_grams
+            totals["sodium_mg"] += item.sodium_mg
+        return {key: round(value, 2) for key, value in totals.items()}
+
 
 class WeightEntrySerializer(serializers.ModelSerializer):
     class Meta:
@@ -192,6 +286,183 @@ class WeightEntrySerializer(serializers.ModelSerializer):
             "entry_date",
             "weight_kg",
             "note",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+
+class WaterEntrySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WaterEntry
+        fields = [
+            "id",
+            "entry_date",
+            "total_ml",
+            "target_ml",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+
+INGREDIENT_WRITABLE_FIELDS = [
+    "food_source",
+    "external_food_id",
+    "food_name",
+    "brand_name",
+    "serving_description",
+    "measurement_unit",
+    "quantity",
+    "grams_per_unit",
+    "image_url",
+    "serving_calories",
+    "serving_protein_grams",
+    "serving_carbs_grams",
+    "serving_fat_grams",
+    "serving_fiber_grams",
+    "serving_sugar_grams",
+    "serving_sodium_mg",
+]
+
+
+class RecipeIngredientSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RecipeIngredient
+        fields = [
+            "id",
+            "order",
+            *INGREDIENT_WRITABLE_FIELDS,
+            "total_grams",
+            "calories",
+            "protein_grams",
+            "carbs_grams",
+            "fat_grams",
+            "fiber_grams",
+            "sugar_grams",
+            "sodium_mg",
+        ]
+        read_only_fields = [
+            "id",
+            "total_grams",
+            "calories",
+            "protein_grams",
+            "carbs_grams",
+            "fat_grams",
+            "fiber_grams",
+            "sugar_grams",
+            "sodium_mg",
+        ]
+
+
+class RecipeSerializer(serializers.ModelSerializer):
+    ingredients = RecipeIngredientSerializer(many=True, required=False)
+    totals = serializers.SerializerMethodField()
+    per_serving = serializers.SerializerMethodField()
+    ingredient_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Recipe
+        fields = [
+            "id",
+            "name",
+            "servings_count",
+            "note",
+            "ingredient_count",
+            "totals",
+            "per_serving",
+            "ingredients",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "ingredient_count",
+            "totals",
+            "per_serving",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_ingredient_count(self, obj):
+        return obj.ingredients.count()
+
+    def _totals_dict(self, obj):
+        totals = {
+            "calories": 0.0,
+            "protein_grams": 0.0,
+            "carbs_grams": 0.0,
+            "fat_grams": 0.0,
+            "fiber_grams": 0.0,
+            "sugar_grams": 0.0,
+            "sodium_mg": 0.0,
+        }
+        for item in obj.ingredients.all():
+            totals["calories"] += item.calories
+            totals["protein_grams"] += item.protein_grams
+            totals["carbs_grams"] += item.carbs_grams
+            totals["fat_grams"] += item.fat_grams
+            totals["fiber_grams"] += item.fiber_grams
+            totals["sugar_grams"] += item.sugar_grams
+            totals["sodium_mg"] += item.sodium_mg
+        return {key: round(value, 2) for key, value in totals.items()}
+
+    def get_totals(self, obj):
+        return self._totals_dict(obj)
+
+    def get_per_serving(self, obj):
+        totals = self._totals_dict(obj)
+        divisor = float(obj.servings_count or 1) or 1.0
+        return {key: round(value / divisor, 2) for key, value in totals.items()}
+
+    def create(self, validated_data):
+        ingredients_data = validated_data.pop("ingredients", [])
+        recipe = Recipe.objects.create(**validated_data)
+        self._write_ingredients(recipe, ingredients_data)
+        return recipe
+
+    def update(self, instance, validated_data):
+        ingredients_data = validated_data.pop("ingredients", None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        if ingredients_data is not None:
+            instance.ingredients.all().delete()
+            self._write_ingredients(instance, ingredients_data)
+        return instance
+
+    @staticmethod
+    def _write_ingredients(recipe, ingredients_data):
+        for index, item in enumerate(ingredients_data):
+            item.pop("order", None)
+            item.pop("id", None)
+            RecipeIngredient.objects.create(recipe=recipe, order=index, **item)
+
+
+class ExerciseEntrySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ExerciseEntry
+        fields = [
+            "id",
+            "entry_date",
+            "name",
+            "duration_min",
+            "calories_burned",
+            "note",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+
+class FastingSessionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FastingSession
+        fields = [
+            "id",
+            "started_at",
+            "ended_at",
+            "target_hours",
             "created_at",
             "updated_at",
         ]
