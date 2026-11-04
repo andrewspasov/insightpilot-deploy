@@ -10,8 +10,8 @@ import { ToolsGrid } from '@/components/profile/ToolsGrid';
 import { BillingHistoryTable } from '@/components/profile/BillingHistoryTable';
 import { useEntitlements } from '@/hooks/use-entitlements';
 import { apiGet, apiPatch } from '@/lib/api';
-import { withApiPath } from '@/lib/env';
 import type { User } from '@/types';
+import { API_BASE_URL } from "@/lib/api";
 
 type CurrentUserResponse = {
   id: number;
@@ -77,12 +77,13 @@ export default function Profile() {
 
   const uploadAvatar = useMutation({
     mutationFn: async (file: File) => {
+      const baseUrl = API_BASE_URL;
       const token = localStorage.getItem('access_token');
 
       const formData = new FormData();
       formData.append('avatar', file);
 
-      const response = await fetch(withApiPath('/me/avatar/'), {
+      const response = await fetch(`${baseUrl}/me/avatar/`, {
         method: 'POST',
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),

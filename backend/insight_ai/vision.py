@@ -1,5 +1,6 @@
-"""Photo meal analysis: send a food photo to the configured AI provider and
-get back a structured list of detected foods with estimated portions/macros.
+"""Photo analysis: send a food photo or a nutrition label to the configured AI
+provider and get back structured foods with estimated portions/macros, or the
+label's values per 100 g/ml plus the package size.
 """
 
 from __future__ import annotations
@@ -46,7 +47,26 @@ Respond with ONLY a JSON object in this exact shape, no other text:
 Estimate realistic portion sizes from the photo. Nutrition values must be for the WHOLE estimated portion, not per 100g. If the image contains no food, return {"foods": [], "notes": "No food detected."}."""
 
 
-def _parse_photo_response(text: str) -> dict[str, Any]:
+LABEL_PROMPT = """You are reading a photo of a packaged food: its nutrition facts table, and the front or side of the pack if visible.
+
+Respond with ONLY a JSON object in this exact shape, no other text:
+{
+  "product_name": "product name from the pack, or a short description",
+  "brand_name": "brand, or empty string",
+  "unit": "g",
+  "per_100": {
+    "calories": 0, "protein_grams": 0, "carbs_grams": 0, "fat_grams": 0,
+    "fiber_grams": 0, "sugar_grams": 0, "sodium_mg": 0
+  },
+  "serving_amount": null,
+  "package_amount": null,
+  "notes": "one short sentence on anything unclear"
+}
+
+Rules: unit is "ml" for drinks labelled per 100 ml, otherwise "g". per_100 is per 100 g or 100 ml. If the table only gives values per serving, convert them to per 100 using the serving size. Convert kJ to kcal (divide by 4.184) when no kcal is shown. Convert salt to sodium (sodium mg = salt g x 400). Use 0 for values not shown. serving_amount is the serving size in g/ml and package_amount the net weight or volume of the whole pack in g/ml (e.g. "Net wt 400 g"), each null if not visible. If no nutrition table is visible, set every per_100 value to 0 and say so in notes."""
+
+
+def _parse_json_object(text: str) -> dict[str, Any]:
     cleaned = text.strip()
     if cleaned.startswith("```"):
         cleaned = cleaned.strip("`")
@@ -63,7 +83,13 @@ def _parse_photo_response(text: str) -> dict[str, Any]:
             data = json.loads(cleaned[start : end + 1])
         except json.JSONDecodeError as exc:
             raise AIProviderRequestError("The AI response could not be parsed.") from exc
+    if not isinstance(data, dict):
+        raise AIProviderRequestError("The AI response could not be parsed.")
+    return data
 
+
+def _parse_photo_response(text: str) -> dict[str, Any]:
+    data = _parse_json_object(text)
     foods = data.get("foods")
     if not isinstance(foods, list):
         raise AIProviderRequestError("The AI response had no food list.")
@@ -96,7 +122,40 @@ def _safe_float(value, default: float = 0.0) -> float:
     return max(round(result, 2), 0.0)
 
 
+LABEL_VALUES = ["calories", "protein_grams", "carbs_grams", "fat_grams", "fiber_grams", "sugar_grams", "sodium_mg"]
+
+
+def _parse_label_response(text: str) -> dict[str, Any]:
+    data = _parse_json_object(text)
+    per_100 = data.get("per_100") if isinstance(data.get("per_100"), dict) else {}
+    values = {key: _safe_float(per_100.get(key)) for key in LABEL_VALUES}
+
+    def amount(key: str) -> float | None:
+        value = _safe_float(data.get(key))
+        return value if value > 0 else None
+
+    return {
+        "product_name": str(data.get("product_name") or "Scanned product")[:200],
+        "brand_name": str(data.get("brand_name") or "")[:200],
+        "unit": "ml" if str(data.get("unit") or "").lower() == "ml" else "g",
+        "per_100": values,
+        "serving_amount": amount("serving_amount"),
+        "package_amount": amount("package_amount"),
+        "found": any(values[key] for key in ("calories", "protein_grams", "carbs_grams", "fat_grams")),
+        "notes": str(data.get("notes") or "")[:300],
+    }
+
+
 def analyze_food_photo(user, image_base64: str, mime_type: str = "image/jpeg") -> dict[str, Any]:
+    return _parse_photo_response(_ask_vision(user, PHOTO_PROMPT, image_base64, mime_type, "[photo analysis]"))
+
+
+def analyze_nutrition_label(user, image_base64: str, mime_type: str = "image/jpeg") -> dict[str, Any]:
+    return _parse_label_response(_ask_vision(user, LABEL_PROMPT, image_base64, mime_type, "[label scan]"))
+
+
+def _ask_vision(user, prompt: str, image_base64: str, mime_type: str, label: str) -> str:
+    """Send one image with a prompt; log usage (each call counts as one AI message)."""
     provider = get_ai_provider()
     model = get_ai_model(provider)
     timeout = _setting_int("INSIGHT_AI_TIMEOUT_SECONDS", 45)
@@ -113,7 +172,7 @@ def analyze_food_photo(user, image_base64: str, mime_type: str = "image/jpeg") -
                 {
                     "role": "user",
                     "content": [
-                        {"type": "input_text", "text": PHOTO_PROMPT},
+                        {"type": "input_text", "text": prompt},
                         {
                             "type": "input_image",
                             "image_url": f"data:{mime_type};base64,{image_base64}",
@@ -135,7 +194,7 @@ def analyze_food_photo(user, image_base64: str, mime_type: str = "image/jpeg") -
             "contents": [
                 {
                     "parts": [
-                        {"text": PHOTO_PROMPT},
+                        {"text": prompt},
                         {"inline_data": {"mime_type": mime_type, "data": image_base64}},
                     ]
                 }
@@ -150,7 +209,7 @@ def analyze_food_photo(user, image_base64: str, mime_type: str = "image/jpeg") -
             provider=provider,
             model=model,
             status=InsightAIUsage.STATUS_ERROR,
-            message_preview="[photo analysis]",
+            message_preview=label,
             error_message=str(exc),
         )
         raise AIProviderRequestError("Could not reach the AI provider.") from exc
@@ -161,7 +220,7 @@ def analyze_food_photo(user, image_base64: str, mime_type: str = "image/jpeg") -
             provider=provider,
             model=model,
             status=InsightAIUsage.STATUS_ERROR,
-            message_preview="[photo analysis]",
+            message_preview=label,
             error_message=response.text[:1000],
         )
         raise AIProviderRequestError("The AI provider rejected the photo analysis request.")
@@ -174,17 +233,15 @@ def analyze_food_photo(user, image_base64: str, mime_type: str = "image/jpeg") -
         text = _extract_gemini_text(data)
         usage = _extract_gemini_usage(data)
 
-    result = _parse_photo_response(text)
-
     InsightAIUsage.objects.create(
         user=user,
         provider=provider,
         model=model,
         status=InsightAIUsage.STATUS_SUCCESS,
-        message_preview="[photo analysis]",
+        message_preview=label,
         response_preview=_preview(text),
         prompt_tokens=usage["prompt_tokens"],
         completion_tokens=usage["completion_tokens"],
         total_tokens=usage["total_tokens"],
     )
-    return result
+    return text

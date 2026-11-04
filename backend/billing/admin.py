@@ -131,7 +131,7 @@ class SubscriptionPassActionForm(ActionForm):
 class AccessPassAdmin(admin.ModelAdmin):
     list_display = ("name", "key", "monthly_price_cents", "tool_limit", "is_active", "stripe_price_id")
     list_filter = ("is_active",)
-    search_fields = ("name", "key", "stripe_price_id")
+    search_fields = ("name", "key", "stripe_price_id", "previous_stripe_price_ids")
 
 
 @admin.register(Tool)

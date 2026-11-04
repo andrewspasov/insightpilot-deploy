@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { CalorieOrb } from "@/components/neon/CalorieOrb";
+import { GoalCelebration } from "@/components/neon/GoalCelebration";
+import { CountUp } from "@/components/neon/useCountUp";
 import {
   useNutritionInsights,
   useNutritionOverview,
@@ -73,8 +76,15 @@ export default function NutritionOverview() {
     }
   };
 
+  const calorieGoal = profile ? Math.round(profile.daily_calorie_target + (overviewQuery.data?.exercise_budget_calories ?? 0)) : 0;
+  const eaten = totals?.calories ?? 0;
+  const proteinHit = !!profile && !!totals && profile.protein_target_grams > 0 && totals.protein_grams >= profile.protein_target_grams;
+  const caloriesHit = calorieGoal > 0 && eaten >= calorieGoal * 0.95 && eaten <= calorieGoal * 1.05;
+
   return (
     <div className="space-y-6 animate-in">
+      <GoalCelebration goalKey="protein" reached={proteinHit} message="Protein goal hit" />
+      <GoalCelebration goalKey="calories" reached={caloriesHit && !proteinHit} message="Calorie goal hit" />
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="text-3xl font-bold mb-2">Nutrition Overview</h1>
@@ -96,23 +106,44 @@ export default function NutritionOverview() {
       {overviewQuery.data && profile && totals && (
         <div className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
           <div className="space-y-6">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <Card>
-                <CardHeader>
-                  <CardDescription>Calories</CardDescription>
-                  <CardTitle>{totals.calories.toFixed(0)} kcal</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    {overviewQuery.data.remaining.calories.toFixed(0)} kcal remaining today
-                  </p>
-                </CardContent>
-              </Card>
+            <Card>
+              <CardContent className="flex flex-col items-center gap-8 pt-10 pb-8 sm:flex-row sm:justify-center sm:gap-14">
+                <CalorieOrb eaten={totals.calories} goal={calorieGoal} />
+                <div className="grid grid-cols-2 gap-x-10 gap-y-4 text-center sm:text-left">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Eaten</p>
+                    <p className="neon-glow-text text-3xl font-extrabold">
+                      <CountUp value={Math.round(totals.calories)} />
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Goal</p>
+                    <p className="text-3xl font-extrabold">{calorieGoal.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Remaining</p>
+                    <p className="text-3xl font-extrabold text-primary">
+                      <CountUp value={Math.round(overviewQuery.data.remaining.calories)} />
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Burned</p>
+                    <p className="text-3xl font-extrabold text-orange-300">
+                      <CountUp value={Math.round(overviewQuery.data.exercise_calories ?? 0)} />
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="grid gap-4 md:grid-cols-3">
 
               <Card>
                 <CardHeader>
                   <CardDescription>Meals logged</CardDescription>
-                  <CardTitle>{overviewQuery.data.entries_count}</CardTitle>
+                  <CardTitle className="neon-glow-text">
+                    <CountUp value={overviewQuery.data.entries_count} />
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground">
@@ -143,7 +174,9 @@ export default function NutritionOverview() {
               <Card>
                 <CardHeader>
                   <CardDescription>7-day adherence</CardDescription>
-                  <CardTitle>{insightsQuery.data?.adherence_pct.toFixed(0) ?? "0"}%</CardTitle>
+                  <CardTitle className="neon-glow-text">
+                    <CountUp value={Math.round(insightsQuery.data?.adherence_pct ?? 0)} suffix="%" />
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground">

@@ -33,11 +33,18 @@ All colors MUST be HSL.
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 240 6% 90%;
-    --input: 240 6% 90%;
+    --border: 200 40% 88%;
+    --input: 200 30% 88%;
     --ring: 195 100% 50%;
 
     --radius: 1rem;
+
+    /* Neon look, softened for light mode. */
+    --beam-base: 195 60% 85%;
+    --beam-core: 195 100% 80%;
+    --glow-card: 0.12;
+    --glow-button: 0.35;
+    --backdrop-opacity: 0.35;
     
     --gradient-primary: linear-gradient(135deg, hsl(195 100% 50%), hsl(280 80% 60%));
     --gradient-hero: linear-gradient(135deg, hsl(195 100% 40%), hsl(280 80% 50%), hsl(170 100% 35%));
@@ -57,35 +64,42 @@ All colors MUST be HSL.
   }
 
   .dark {
-    --background: 220 25% 7%;
-    --foreground: 210 40% 98%;
+    /* Neon: near-black ground, cyan + violet light, navy glass cards. */
+    --background: 232 47% 3%;
+    --foreground: 210 40% 96%;
 
-    --card: 220 20% 12%;
-    --card-foreground: 210 40% 98%;
+    --card: 226 49% 8%;
+    --card-foreground: 210 40% 96%;
 
-    --popover: 220 20% 12%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 226 49% 8%;
+    --popover-foreground: 210 40% 96%;
 
-    --primary: 195 100% 50%;
-    --primary-foreground: 220 25% 7%;
-    --primary-glow: 195 100% 65%;
+    --primary: 188 86% 53%;
+    --primary-foreground: 195 80% 6%;
+    --primary-glow: 187 92% 69%;
 
-    --secondary: 280 80% 60%;
+    --secondary: 258 90% 66%;
     --secondary-foreground: 210 40% 98%;
 
-    --muted: 220 15% 25%;
-    --muted-foreground: 215 20% 65%;
+    --muted: 226 35% 14%;
+    --muted-foreground: 220 14% 62%;
 
-    --accent: 170 100% 45%;
-    --accent-foreground: 220 25% 7%;
+    --accent: 226 40% 16%;
+    --accent-foreground: 187 92% 69%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 220 15% 20%;
-    --input: 220 15% 20%;
-    --ring: 195 100% 50%;
-    --sidebar-background: 240 5.9% 10%;
+    --border: 222 39% 19%;
+    --input: 222 39% 19%;
+    --ring: 188 86% 53%;
+
+    --beam-base: 188 86% 53% / 0.16;
+    --beam-core: 183 100% 96%;
+    --glow-card: 0.18;
+    --glow-button: 0.6;
+    --backdrop-opacity: 1;
+    --sidebar-background: 232 47% 4%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
     --sidebar-primary-foreground: 0 0% 100%;
@@ -97,6 +111,51 @@ All colors MUST be HSL.
 }
 
 @layer utilities {
+  /* A glass card with a light running around its edge (left → top → right →
+     bottom). Cards next to each other start at different points. */
+  .neon-edge {
+    border: 1.5px solid transparent;
+    background:
+      linear-gradient(hsl(var(--card)), hsl(var(--card))) padding-box,
+      conic-gradient(
+          from var(--beam-angle),
+          hsl(var(--beam-base)) 0deg,
+          hsl(var(--beam-base)) 250deg,
+          hsl(var(--primary)) 295deg,
+          hsl(var(--beam-core)) 320deg,
+          hsl(var(--secondary)) 338deg,
+          hsl(var(--beam-base)) 360deg
+        )
+        border-box;
+    box-shadow: 0 0 24px hsl(var(--primary) / var(--glow-card));
+    animation: neon-beam 4.5s linear infinite;
+  }
+
+  .neon-card {
+    animation: neon-fly-in 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both, neon-beam 4.5s linear infinite;
+  }
+  .neon-card:nth-child(4n + 2) { animation-delay: 60ms, -1.1s; }
+  .neon-card:nth-child(4n + 3) { animation-delay: 120ms, -2.3s; }
+  .neon-card:nth-child(4n + 4) { animation-delay: 180ms, -3.4s; }
+
+  .neon-glow-text {
+    text-shadow: 0 0 16px hsl(var(--primary) / calc(var(--glow-button) * 0.9));
+  }
+
+  .neon-press {
+    transition: transform 0.12s ease, box-shadow 0.15s ease;
+  }
+  .neon-press:active {
+    transform: scale(0.95);
+  }
+
+  .flip-in {
+    animation: neon-flip-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .flip-out {
+    animation: neon-flip-out 0.34s cubic-bezier(0.6, 0, 0.8, 0.4) both;
+  }
+
   .animate-gradient {
     background-size: 200% 200%;
     animation: gradient-shift 8s ease infinite;
@@ -224,4 +283,109 @@ All colors MUST be HSL.
     min-height: 100vh;
     width: 100%;
   }
+}
+
+@property --beam-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: -50deg;
+}
+
+@keyframes neon-beam {
+  from { --beam-angle: -50deg; }
+  to { --beam-angle: 310deg; }
+}
+
+@keyframes neon-fly-in {
+  from { opacity: 0; transform: translateY(18px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes neon-flip-in {
+  from { opacity: 0; transform: translate(-50%, -50%) perspective(1000px) rotateY(-90deg) scale(0.92); }
+  to { opacity: 1; transform: translate(-50%, -50%) perspective(1000px) rotateY(0deg) scale(1); }
+}
+
+@keyframes neon-flip-out {
+  from { opacity: 1; transform: translate(-50%, -50%) perspective(1000px) rotateY(0deg) scale(1); }
+  to { opacity: 0; transform: translate(-50%, -50%) perspective(1000px) rotateY(90deg) scale(0.92); }
+}
+
+@keyframes neon-drift-a {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(80px, 60px); }
+}
+
+@keyframes neon-drift-b {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(-70px, -50px); }
+}
+
+@keyframes neon-wave {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@keyframes neon-halo {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.06); }
+}
+
+@keyframes neon-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes neon-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+@keyframes neon-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.1); }
+}
+
+@keyframes neon-ring {
+  from { transform: rotateX(70deg) rotateZ(0deg); }
+  to { transform: rotateX(70deg) rotateZ(360deg); }
+}
+
+@keyframes neon-grow-in {
+  from { opacity: 0; transform: scale(0.15); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes neon-shrink-out {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.15); }
+}
+
+@keyframes neon-burst {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.4); }
+  15% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(1); }
+}
+
+@keyframes neon-dot {
+  0%, 100% { opacity: 0.3; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(-3px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .neon-edge,
+  .neon-card,
+  .flip-in,
+  .flip-out {
+    animation: none !important;
+  }
+}
+
+@keyframes fadeInBackdrop {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeOutBackdrop {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }

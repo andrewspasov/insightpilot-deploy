@@ -131,7 +131,7 @@ class PasswordResetRequestView(APIView):
             token_generator = PasswordResetTokenGenerator()
             uid = urlsafe_base64_encode(force_bytes(user.pk))
             token = token_generator.make_token(user)
-            base_url = getattr(settings, "FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
+            base_url = getattr(settings, "FRONTEND_BASE_URL", "http://localhost:8080").rstrip("/")
             reset_url = f"{base_url}/reset-password/{uid}/{token}"
 
             subject = "Reset your InsightPilot password"
@@ -229,7 +229,7 @@ class PasswordResetConfirmView(APIView):
 
 
 def _oauth_frontend_redirect(params: dict) -> str:
-    base_url = getattr(settings, "FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
+    base_url = getattr(settings, "FRONTEND_BASE_URL", "http://localhost:8080").rstrip("/")
     path = getattr(settings, "FRONTEND_OAUTH_REDIRECT_PATH", "/oauth/callback")
     return f"{base_url}{path}?{urlencode(params)}"
 

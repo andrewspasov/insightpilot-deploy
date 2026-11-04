@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
-import { withBackendPath } from '@/lib/env';
 import { Shield, Loader2, Mail } from 'lucide-react';
+import { BACKEND_ORIGIN } from "@/lib/api";
 
 interface SecurityCardProps {
   email: string;
@@ -11,6 +11,8 @@ interface SecurityCardProps {
 
 export function SecurityCard({ email }: SecurityCardProps) {
   const [isLoading, setIsLoading] = useState(false);
+
+  const backendBaseUrl = BACKEND_ORIGIN;
 
   const handlePasswordReset = async () => {
     if (!email) {
@@ -25,7 +27,7 @@ export function SecurityCard({ email }: SecurityCardProps) {
     setIsLoading(true);
 
     try {
-      const response = await fetch(withBackendPath('/accounts/password-reset/'), {
+      const response = await fetch(`${backendBaseUrl}/accounts/password-reset/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

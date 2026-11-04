@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 import os
 from pathlib import Path
 from datetime import timedelta
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 
@@ -21,20 +22,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Load environment variables from backend/.env if present
 load_dotenv(BASE_DIR / ".env")
-
-
-def env_bool(name: str, default: bool) -> bool:
-    value = os.getenv(name)
-    if value is None:
-        return default
-    return value.strip().lower() in {"1", "true", "yes", "on"}
-
-
-def env_list(name: str, default: list[str]) -> list[str]:
-    value = os.getenv(name)
-    if value is None:
-        return default
-    return [item.strip() for item in value.split(",") if item.strip()]
 
 
 def env_int(name: str, default: int) -> int:
@@ -47,22 +34,60 @@ def env_int(name: str, default: int) -> int:
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv(
-    "SECRET_KEY",
-    "django-insecure-+8p%-euri4fv$38s#hs#+k)i-_8yi=xjudvy5!&f@8+z%5mt_h",
-)
+def env_first(*names: str, default: str = "") -> str:
+    # The live Render service still uses the older names (DEBUG, SECRET_KEY, ...),
+    # so each DJANGO_* setting also accepts its old name.
+    for name in names:
+        value = os.getenv(name)
+        if value is not None:
+            return value
+    return default
+
+
+def env_list(*names: str) -> list[str]:
+    return [item.strip() for item in env_first(*names).split(",") if item.strip()]
+
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = env_bool("DEBUG", True)
+# Local development keeps DEBUG on; production sets DJANGO_DEBUG=false.
+DEBUG = env_first("DJANGO_DEBUG", "DEBUG", default="true").strip().lower() in {"1", "true", "yes", "on"}
 
-DEFAULT_ALLOWED_HOSTS = [
+# SECURITY WARNING: keep the secret key used in production secret!
+# The fallback key is public (it's in git) and is only accepted while DEBUG is on.
+SECRET_KEY = env_first("DJANGO_SECRET_KEY", "SECRET_KEY").strip()
+if not SECRET_KEY:
+    if not DEBUG:
+        raise ImproperlyConfigured("Set DJANGO_SECRET_KEY when DJANGO_DEBUG is false.")
+    SECRET_KEY = 'django-insecure-+8p%-euri4fv$38s#hs#+k)i-_8yi=xjudvy5!&f@8+z%5mt_h'
+
+ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
     "[::1]",
     "host.docker.internal",
+    # Production domains, e.g. DJANGO_ALLOWED_HOSTS=api.example.com,myapp.onrender.com
+    *env_list("DJANGO_ALLOWED_HOSTS", "ALLOWED_HOSTS"),
 ]
-ALLOWED_HOSTS = env_list("ALLOWED_HOSTS", DEFAULT_ALLOWED_HOSTS)
+
+# Needed for the Django/Wagtail admin over HTTPS, e.g. https://api.example.com
+CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS", "CSRF_TRUSTED_ORIGINS")
+
+if not DEBUG:
+    # Render (and most hosts) terminate HTTPS at a proxy and pass the scheme along.
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_SSL_REDIRECT = env_first("DJANGO_SECURE_SSL_REDIRECT", "SECURE_SSL_REDIRECT", default="true").strip().lower() != "false"
+    # Health checks may arrive over plain HTTP inside the host's network.
+    SECURE_REDIRECT_EXEMPT = [r"^api/health/$"]
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    # HSTS is left off on purpose: browsers cache it, so enable it deliberately
+    # once the production domain is final (SECURE_HSTS_SECONDS).
+
+# In local development the Mac's LAN IP changes whenever the network does, and
+# phones/simulators reach the backend through that address. Accept any host
+# while DEBUG is on; production keeps the explicit list above.
+if DEBUG:
+    ALLOWED_HOSTS = ["*"]
 
 
 # Application definition
@@ -105,7 +130,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
+    # Serves collected static files (admin CSS/JS) when DEBUG is off.
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -208,21 +234,13 @@ SHORT_TIME_FORMAT = "H:i \\C\\E\\T"
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = "/static/"
+STATIC_URL = 'static/'
+# `manage.py collectstatic` gathers files here for WhiteNoise to serve in production.
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Media uploads (used by Wagtail images/documents)
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
-
-STORAGES = {
-    "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
-    },
-    "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
-    },
-}
 
 # Used by Wagtail for absolute admin URLs in emails / user bar.
 WAGTAILADMIN_BASE_URL = os.getenv("WAGTAILADMIN_BASE_URL", "http://localhost:8000").strip()
@@ -235,31 +253,15 @@ WAGTAIL_SITE_NAME = "InsightPilot"
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-DEFAULT_FRONTEND_BASE_URL = "http://localhost:5173"
-LOCAL_FRONTEND_ORIGINS = [
+# Allow local frontend dev servers to call the API, plus production web origins
+# from CORS_ALLOWED_ORIGINS (comma-separated, e.g. https://app.example.com).
+CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:8080",
     "http://127.0.0.1:8080",
+    *env_list("CORS_ALLOWED_ORIGINS"),
 ]
-FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", DEFAULT_FRONTEND_BASE_URL).strip().rstrip("/")
-
-default_cors_allowed_origins = [*LOCAL_FRONTEND_ORIGINS]
-if FRONTEND_BASE_URL and FRONTEND_BASE_URL not in default_cors_allowed_origins:
-    default_cors_allowed_origins.append(FRONTEND_BASE_URL)
-
-CORS_ALLOWED_ORIGINS = env_list("CORS_ALLOWED_ORIGINS", default_cors_allowed_origins)
-CORS_ALLOW_ALL_ORIGINS = env_bool("CORS_ALLOW_ALL_ORIGINS", DEBUG)
-CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS", default_cors_allowed_origins)
-
-USE_X_FORWARDED_HOST = env_bool("USE_X_FORWARDED_HOST", not DEBUG)
-SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", not DEBUG)
-SESSION_COOKIE_SECURE = env_bool("SESSION_COOKIE_SECURE", not DEBUG)
-CSRF_COOKIE_SECURE = env_bool("CSRF_COOKIE_SECURE", not DEBUG)
-SECURE_HSTS_SECONDS = int(os.getenv("SECURE_HSTS_SECONDS", "0"))
-SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("SECURE_HSTS_INCLUDE_SUBDOMAINS", False)
-SECURE_HSTS_PRELOAD = env_bool("SECURE_HSTS_PRELOAD", False)
 
 AUTH_USER_MODEL = "accounts.User"
 
@@ -275,19 +277,27 @@ SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
+
+# Any origin is fine for local development; production only allows the list above.
+CORS_ALLOW_ALL_ORIGINS = DEBUG
+
 # NicheTrendRadar external connectors
 # YouTube Data API key (used by youtube_client).
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "")
 
 # Nutrition external connectors
 USDA_FOODDATA_CENTRAL_API_KEY = os.getenv("USDA_FOODDATA_CENTRAL_API_KEY", "").strip()
+# Food photos for diary entries and example meals: an Unsplash access key
+# (unsplash.com/oauth/applications) or a Pexels key; Unsplash wins if both are set.
+UNSPLASH_ACCESS_KEY = os.getenv("UNSPLASH_ACCESS_KEY", "").strip()
+PEXELS_API_KEY = os.getenv("PEXELS_API_KEY", "").strip()
 
 # InsightPilot AI (private nutrition AI test)
 INSIGHT_AI_PROVIDER = os.getenv("INSIGHT_AI_PROVIDER", "gemini").strip().lower()
 INSIGHT_AI_GEMINI_API_KEY = os.getenv("INSIGHT_AI_GEMINI_API_KEY", "").strip()
 INSIGHT_AI_MODEL = os.getenv("INSIGHT_AI_MODEL", "gemini-2.5-flash-lite").strip()
 INSIGHT_AI_OPENAI_API_KEY = os.getenv("INSIGHT_AI_OPENAI_API_KEY", os.getenv("OPENAI_API_KEY", "")).strip()
-INSIGHT_AI_OPENAI_MODEL = os.getenv("INSIGHT_AI_OPENAI_MODEL", "gpt-4.1-nano").strip()
+INSIGHT_AI_OPENAI_MODEL = os.getenv("INSIGHT_AI_OPENAI_MODEL", "gpt-5.4-nano").strip()
 INSIGHT_AI_ALLOWED_EMAILS = os.getenv("INSIGHT_AI_ALLOWED_EMAILS", "").strip()
 INSIGHT_AI_MONTHLY_MESSAGE_LIMIT = env_int("INSIGHT_AI_MONTHLY_MESSAGE_LIMIT", 100)
 INSIGHT_AI_MONTHLY_TOKEN_LIMIT = env_int("INSIGHT_AI_MONTHLY_TOKEN_LIMIT", 100000)
@@ -302,6 +312,16 @@ MERCADOLIBRE_ACCESS_TOKEN = os.getenv("MERCADOLIBRE_ACCESS_TOKEN", "")
 
 # Shared secret for internal automation calls (e.g., n8n -> InsightPilot).
 INSIGHTPILOT_INTERNAL_TOKEN = os.getenv("INSIGHTPILOT_INTERNAL_TOKEN", "").strip()
+
+# Frontend base URL used for password reset links.
+FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173").strip()
+
+# The website itself may always call the API, as the live config has done.
+_frontend_origin = FRONTEND_BASE_URL.rstrip("/")
+if _frontend_origin and _frontend_origin not in CORS_ALLOWED_ORIGINS:
+    CORS_ALLOWED_ORIGINS.append(_frontend_origin)
+if _frontend_origin and _frontend_origin not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append(_frontend_origin)
 
 # Email (SMTP) configuration for password reset emails.
 EMAIL_HOST = os.getenv("EMAIL_HOST", "").strip()

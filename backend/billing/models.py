@@ -22,6 +22,10 @@ class AccessPass(models.Model):
     monthly_price_cents = models.PositiveIntegerField()
     tool_limit = models.PositiveSmallIntegerField()
     stripe_price_id = models.CharField(max_length=255, blank=True, default="")
+    # Older Stripe prices for this pass. Stripe prices can't be edited, so a
+    # price change makes a new one; people already paying the old one keep
+    # this pass.
+    previous_stripe_price_ids = models.JSONField(default=list, blank=True)
     is_active = models.BooleanField(default=True)
     sort_order = models.PositiveIntegerField(default=0)
 

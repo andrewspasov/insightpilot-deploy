@@ -7,6 +7,7 @@ import {
   Lightbulb,
   FileText,
   Sparkles,
+  Target,
   ArrowLeft,
   LogOut,
   ChevronLeft,
@@ -17,6 +18,8 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { logout } from "@/lib/auth";
 import { useNavigate } from "react-router-dom";
 import { useToolAccess } from "@/hooks/use-entitlements";
+import { CoachNudgeDialog } from "@/components/nutrition/CoachNudgeDialog";
+import { CoachBubble } from "@/components/neon/CoachBubble";
 
 interface NutritionLayoutProps {
   children: ReactNode;
@@ -25,6 +28,7 @@ interface NutritionLayoutProps {
 const nutritionMenuItems = [
   { label: "Overview", path: "/tools/nutrition", icon: Apple },
   { label: "Logs", path: "/tools/nutrition/logs", icon: ClipboardList },
+  { label: "Plan", path: "/tools/nutrition/plan", icon: Target },
   { label: "Insights", path: "/tools/nutrition/insights", icon: Lightbulb },
   { label: "Reports", path: "/tools/nutrition/reports", icon: FileText },
   { label: "InsightPilot AI", path: "/tools/nutrition/ai", icon: Sparkles },
@@ -43,7 +47,7 @@ export function NutritionLayout({ children }: NutritionLayoutProps) {
   };
 
   return (
-    <div className="flex min-h-screen w-full bg-background">
+    <div className="flex min-h-screen w-full bg-transparent">
       {/* Mobile menu button */}
       <Button
         variant="ghost"
@@ -57,7 +61,7 @@ export function NutritionLayout({ children }: NutritionLayoutProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 w-64 transform bg-card border-r border-border transition-transform duration-300 lg:relative lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-40 w-64 transform border-r border-primary/30 bg-card/80 backdrop-blur-xl shadow-[4px_0_24px_hsl(var(--primary)/0.08)] transition-transform duration-300 lg:relative lg:translate-x-0",
           sidebarOpen ? "translate-x-0" : "-translate-x-full",
           sidebarCollapsed ? "lg:w-16" : "lg:w-64",
         )}
@@ -111,7 +115,7 @@ export function NutritionLayout({ children }: NutritionLayoutProps) {
                   "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-all hover:bg-muted hover:text-foreground",
                   sidebarCollapsed && "justify-center gap-0 px-2",
                 )}
-                activeClassName="bg-muted text-foreground"
+                activeClassName="bg-primary/10 text-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.45),0_0_16px_hsl(var(--primary)/0.25)] [&_svg]:drop-shadow-[0_0_6px_hsl(var(--primary))]"
                 onClick={() => setSidebarOpen(false)}
               >
                 <item.icon size={18} />
@@ -144,7 +148,8 @@ export function NutritionLayout({ children }: NutritionLayoutProps) {
       )}
 
       <main className="flex-1 overflow-auto">
-        <div className="container mx-auto px-4 py-8 lg:px-8">
+        {/* Below lg the fixed menu button sits top-left, so the page starts under it. */}
+        <div className="container mx-auto px-4 pb-8 pt-16 lg:px-8 lg:pt-8">
           {isReadOnly && (
             <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
               Your subscription is in a grace period. Nutrition is read-only right now.
@@ -153,6 +158,8 @@ export function NutritionLayout({ children }: NutritionLayoutProps) {
           {children}
         </div>
       </main>
+      <CoachNudgeDialog />
+      <CoachBubble />
     </div>
   );
 }

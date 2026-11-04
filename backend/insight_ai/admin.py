@@ -1,6 +1,7 @@
 from django.contrib import admin
+from django.utils.html import format_html_join
 
-from .models import InsightAIAction, InsightAIUsage
+from .models import InsightAIAction, InsightAIChat, InsightAIUsage
 
 
 @admin.register(InsightAIUsage)
@@ -58,3 +59,23 @@ class InsightAIActionAdmin(admin.ModelAdmin):
         "created_at",
         "updated_at",
     )
+
+
+@admin.register(InsightAIChat)
+class InsightAIChatAdmin(admin.ModelAdmin):
+    list_display = ("user", "message_count", "updated_at")
+    search_fields = ("user__username", "user__email")
+    readonly_fields = ("user", "transcript", "updated_at")
+    exclude = ("messages",)
+
+    @admin.display(description="Messages")
+    def message_count(self, obj):
+        return len(obj.messages)
+
+    @admin.display(description="Conversation")
+    def transcript(self, obj):
+        return format_html_join(
+            "",
+            "<p><strong>{}</strong>: {}</p>",
+            ((m.get("role", ""), m.get("content", "")) for m in obj.messages),
+        )

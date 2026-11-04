@@ -2,17 +2,19 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from "react-router-dom";
 import { Suspense, lazy, type ReactNode } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { GlobalLayout } from "@/components/GlobalLayout";
 import { NtrLayout } from "@/components/ntr/NtrLayout";
 import { NutritionLayout } from "@/components/nutrition/NutritionLayout";
+import { NeonBackdrop } from "@/components/neon/NeonBackdrop";
 import ToolAccessGuard from "@/components/ToolAccessGuard";
 import RequirePassAccess from "@/components/RequirePassAccess";
 
 // Public pages
 import Index from "./pages/Index";
+import NutritionHome from "./pages/NutritionHome";
 import NotFound from "./pages/NotFound";
 import Signup from "./pages/Signup";
 import Login from "./pages/Login";
@@ -48,6 +50,9 @@ import RequireAuth from "./components/RequireAuth";
 
 const queryClient = new QueryClient();
 const NutritionAI = lazy(() => import("./pages/nutrition/NutritionAI"));
+const NutritionPlan = lazy(() => import("./pages/nutrition/NutritionPlan"));
+const NutritionPlanBuilder = lazy(() => import("./pages/nutrition/NutritionPlanBuilder"));
+const NutritionWorkout = lazy(() => import("./pages/nutrition/NutritionWorkout"));
 
 const LazyPage = ({ children }: { children: ReactNode }) => (
   <Suspense fallback={<div className="text-sm text-muted-foreground">Loading...</div>}>
@@ -73,20 +78,25 @@ const NutritionLayoutWrapper = () => (
   </NutritionLayout>
 );
 
+const GlobalThemeToggle = () => {
+  const { pathname } = useLocation();
+  if (pathname.replace(/\/$/, "") === "/nutrition") return null;
+  return <div className="fixed right-4 top-4 z-50"><ThemeToggle /></div>;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <NeonBackdrop />
       <BrowserRouter>
-        {/* Global theme toggle so light/dark works on every page */}
-        <div className="fixed right-4 top-4 z-50">
-          <ThemeToggle />
-        </div>
+        <GlobalThemeToggle />
 
         <Routes>
           {/* PUBLIC ROUTES */}
           <Route path="/" element={<Index />} />
+          <Route path="/nutrition" element={<NutritionHome />} />
           <Route path="/about" element={<About />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/signup" element={<Signup />} />
@@ -169,6 +179,9 @@ const App = () => (
           >
             <Route index element={<NutritionOverview />} />
             <Route path="logs" element={<NutritionLogs />} />
+            <Route path="plan" element={<LazyPage><NutritionPlan /></LazyPage>} />
+            <Route path="plan/new" element={<LazyPage><NutritionPlanBuilder /></LazyPage>} />
+            <Route path="plan/workout/:dayId" element={<LazyPage><NutritionWorkout /></LazyPage>} />
             <Route path="insights" element={<NutritionInsights />} />
             <Route path="reports" element={<NutritionReports />} />
             <Route

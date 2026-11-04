@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { withBackendPath } from "@/lib/env";
+import { BACKEND_ORIGIN } from "@/lib/api";
 
 export default function ResetPassword() {
   const { uid, token } = useParams();
@@ -23,7 +23,7 @@ export default function ResetPassword() {
     }
 
     try {
-      const res = await fetch(withBackendPath("/accounts/password-reset/confirm/"), {
+      const res = await fetch(`${BACKEND_ORIGIN}/accounts/password-reset/confirm/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ uid, token, password }),

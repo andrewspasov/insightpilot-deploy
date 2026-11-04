@@ -1,5 +1,13 @@
+// frontend/src/lib/api.ts
+
 import { getAccessToken } from "./auth";
-import { withApiPath } from "./env";
+
+// Base URL of your Django API, e.g. https://api.example.com/api in production.
+// Set VITE_API_URL at build time; local development falls back to localhost.
+export const API_BASE_URL: string = (import.meta.env.VITE_API_URL || "http://localhost:8000/api").replace(/\/$/, "");
+
+// The backend's origin without /api, for non-API routes (accounts, OAuth, blog).
+export const BACKEND_ORIGIN = API_BASE_URL.replace(/\/api$/, "");
 
 /**
  * Small helper for GET requests to your backend.
@@ -16,7 +24,7 @@ export async function apiGet<T>(path: string): Promise<T> {
   const accessToken = localStorage.getItem("access_token");
 
   // Do the HTTP GET request
-  const res = await fetch(withApiPath(path), {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
@@ -46,10 +54,12 @@ export async function apiPost<TBody, TResponse>(
   path: string,
   body: TBody
 ): Promise<TResponse> {
+  const baseUrl = API_BASE_URL;
+
   // Get the access token from localStorage (we stored this on login)
   const token = localStorage.getItem("access_token");
 
-  const res = await fetch(withApiPath(path), {
+  const res = await fetch(`${baseUrl}${path}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -90,9 +100,10 @@ export async function apiPostForm<TResponse>(
   path: string,
   body: FormData,
 ): Promise<TResponse> {
+  const baseUrl = API_BASE_URL;
   const token = localStorage.getItem("access_token");
 
-  const res = await fetch(withApiPath(path), {
+  const res = await fetch(`${baseUrl}${path}`, {
     method: "POST",
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -132,10 +143,13 @@ export async function apiPatch<TBody, TResponse>(
   path: string,
   body: TBody,
 ): Promise<TResponse> {
+  // Build the full URL, e.g. "/ntr/tracks/1/" -> "http://localhost:8000/api/ntr/tracks/1/"
+  const url = `${API_BASE_URL}${path}`;
+
   // Read JWT token from the browser (we saved it on login)
   const token = getAccessToken();
 
-  const res = await fetch(withApiPath(path), {
+  const res = await fetch(url, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
@@ -172,9 +186,10 @@ export async function apiPatch<TBody, TResponse>(
 
 // DELETE helper: used when we want to remove a resource completely
 export async function apiDelete(path: string): Promise<void> {
+  const url = `${API_BASE_URL}${path}`;
   const token = getAccessToken();
 
-  const res = await fetch(withApiPath(path), {
+  const res = await fetch(url, {
     method: "DELETE",
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),

@@ -130,6 +130,45 @@ class InsightAIViewTests(APITestCase):
         INSIGHT_AI_OPENAI_MODEL="gpt-test",
         INSIGHT_AI_ALLOWED_EMAILS="nutrition-ai@example.com",
     )
+    @patch("insight_ai.vision.requests.post")
+    def test_label_scan_reads_per_100_values_and_counts_as_a_message(self, mock_post):
+        label = (
+            '{"product_name": "Oat bar", "brand_name": "Acme", "unit": "g", '
+            '"per_100": {"calories": 410, "protein_grams": 9.5, "carbs_grams": "62", "fat_grams": 13, '
+            '"fiber_grams": 6, "sugar_grams": 21, "sodium_mg": -5}, '
+            '"serving_amount": 40, "package_amount": 0, "notes": "Clear label."}'
+        )
+        mock_response = Mock(status_code=200)
+        mock_response.json.return_value = {
+            "output": [{"type": "message", "content": [{"type": "output_text", "text": f"```json\n{label}\n```"}]}],
+            "usage": {"input_tokens": 900, "output_tokens": 80, "total_tokens": 980},
+        }
+        mock_post.return_value = mock_response
+
+        response = self.client.post(
+            "/api/insight-ai/photo/", {"image_base64": "aGVsbG8=", "mode": "label"}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data["product_name"], "Oat bar")
+        self.assertEqual(response.data["unit"], "g")
+        self.assertEqual(response.data["per_100"]["carbs_grams"], 62)
+        self.assertEqual(response.data["per_100"]["sodium_mg"], 0)
+        self.assertEqual(response.data["serving_amount"], 40)
+        self.assertIsNone(response.data["package_amount"])
+        self.assertTrue(response.data["found"])
+        prompt = mock_post.call_args.kwargs["json"]["input"][0]["content"][0]["text"]
+        self.assertIn("nutrition facts", prompt)
+        usage = InsightAIUsage.objects.get()
+        self.assertEqual(usage.message_preview, "[label scan]")
+        self.assertEqual(response.data["monthly_usage"]["messages"], 1)
+
+    @override_settings(
+        INSIGHT_AI_PROVIDER="openai",
+        INSIGHT_AI_OPENAI_API_KEY="test-openai-key",
+        INSIGHT_AI_OPENAI_MODEL="gpt-test",
+        INSIGHT_AI_ALLOWED_EMAILS="nutrition-ai@example.com",
+    )
     @patch("insight_ai.services.requests.post")
     def test_chat_calls_openai_and_logs_usage(self, mock_post):
         mock_response = Mock(status_code=200)
@@ -498,3 +537,70 @@ class InsightAIViewTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
         self.assertIn("limit", response.data["detail"])
+
+
+class InsightAIChatHistoryTests(APITestCase):
+    URL = "/api/insight-ai/chat-history/"
+
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(username="chat-user", email="chat@example.com", password="password123")
+        self.other = User.objects.create_user(username="other-user", email="other@example.com", password="password123")
+        self.client.force_authenticate(self.user)
+
+    def _action(self, user, status_value=InsightAIAction.STATUS_PENDING):
+        return InsightAIAction.objects.create(
+            user=user,
+            action_type=InsightAIAction.TYPE_LOG_MEAL,
+            status=status_value,
+            summary="Log rice",
+            payload={},
+            expires_at=timezone.now() + timedelta(hours=24),
+        )
+
+    def test_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+        self.assertEqual(self.client.get(self.URL).status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_save_and_load_round_trip(self):
+        messages = [
+            {"id": "user-1", "role": "user", "content": "hi", "timestamp": "2026-10-29T10:00:00Z"},
+            {"id": "assistant-1", "role": "assistant", "content": "hello"},
+        ]
+        self.client.post(self.URL, {"messages": messages}, format="json")
+        response = self.client.get(self.URL)
+
+        self.assertEqual(response.data["messages"], messages)
+
+    def test_drops_bad_messages_and_keeps_newest_fifty(self):
+        messages = [{"id": str(i), "role": "user", "content": str(i)} for i in range(60)]
+        messages.insert(0, {"id": "x", "role": "system", "content": "nope"})
+        self.client.post(self.URL, {"messages": messages}, format="json")
+
+        saved = self.client.get(self.URL).data["messages"]
+        self.assertEqual(len(saved), 50)
+        self.assertEqual(saved[0]["content"], "10")
+
+    def test_cards_show_current_status_and_only_own_actions(self):
+        mine = self._action(self.user)
+        theirs = self._action(self.other)
+        messages = [
+            {"id": "a", "role": "assistant", "content": "log?", "pendingAction": {"id": mine.id, "status": "pending"}},
+            {"id": "b", "role": "assistant", "content": "x", "pendingAction": {"id": theirs.id, "status": "pending"}},
+        ]
+        self.client.post(self.URL, {"messages": messages}, format="json")
+        mine.status = InsightAIAction.STATUS_CONFIRMED
+        mine.save()
+
+        saved = self.client.get(self.URL).data["messages"]
+        self.assertEqual(saved[0]["pendingAction"]["status"], "confirmed")
+        self.assertIsNone(saved[1]["pendingAction"])
+
+    def test_each_user_sees_only_their_chat_and_delete_clears(self):
+        self.client.post(self.URL, {"messages": [{"id": "1", "role": "user", "content": "mine"}]}, format="json")
+        self.client.force_authenticate(self.other)
+        self.assertEqual(self.client.get(self.URL).data["messages"], [])
+
+        self.client.force_authenticate(self.user)
+        self.assertEqual(self.client.delete(self.URL).status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(self.client.get(self.URL).data["messages"], [])

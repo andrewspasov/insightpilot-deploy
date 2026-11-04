@@ -134,10 +134,12 @@ def _extract_price_ids(data) -> list[str]:
 def _map_price_to_pass(price_ids: list[str]) -> tuple[AccessPass | None, str]:
     if not price_ids:
         return None, ""
-    passes_by_price = {
-        p.stripe_price_id: p
-        for p in AccessPass.objects.filter(stripe_price_id__in=price_ids)
-    }
+    passes_by_price = {}
+    for p in AccessPass.objects.all():
+        for old_price_id in p.previous_stripe_price_ids or []:
+            passes_by_price[old_price_id] = p
+        if p.stripe_price_id:
+            passes_by_price[p.stripe_price_id] = p
     for price_id in price_ids:
         access_pass = passes_by_price.get(price_id)
         if access_pass:

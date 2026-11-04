@@ -1,13 +1,27 @@
 import { useDeferredValue, useEffect, useState } from "react";
+import { BookOpen, Camera, FileText, Pencil, Plus, Trash2 } from "lucide-react";
 
-import { useCreateCustomFood, useCreateNutritionEntry, useNutritionFoodSearch } from "@/hooks/use-nutrition";
+import {
+  useCreateCustomFood,
+  useCreateNutritionEntry,
+  useDeleteRecipe,
+  useLogRecipe,
+  useLogSavedMeal,
+  useNutritionFoodSearch,
+  useNutritionRecipes,
+  useNutritionSavedMeals,
+} from "@/hooks/use-nutrition";
 import { useToast } from "@/hooks/use-toast";
-import { formatNutritionNumber } from "@/lib/nutrition";
+import { formatNutritionNumber, formatQuantityWithUnit } from "@/lib/nutrition";
 import type {
   NutritionFoodSearchResult,
   NutritionMealType,
+  NutritionRecipe,
+  NutritionSavedMeal,
   NutritionUnitOption,
 } from "@/types/nutrition";
+import { RecipeEditorDialog } from "@/components/nutrition/RecipeEditorDialog";
+import { ScanFoodDialog, type ScanMode } from "@/components/nutrition/ScanFoodDialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -92,6 +106,19 @@ function getSelectedUnit(result: NutritionFoodSearchResult, unitKey: string): Nu
   );
 }
 
+function buildPreviewTotals(unit: NutritionUnitOption, quantity: number) {
+  return {
+    calories: unit.calories * quantity,
+    protein_grams: unit.protein_grams * quantity,
+    carbs_grams: unit.carbs_grams * quantity,
+    fat_grams: unit.fat_grams * quantity,
+    fiber_grams: unit.fiber_grams * quantity,
+    sugar_grams: unit.sugar_grams * quantity,
+    sodium_mg: unit.sodium_mg * quantity,
+    total_grams: unit.grams_per_unit ? unit.grams_per_unit * quantity : null,
+  };
+}
+
 function buildCustomFoodFormData(form: CustomFoodFormState) {
   const formData = new FormData();
 
@@ -152,11 +179,20 @@ export function AddFoodDialog({
   const [customMode, setCustomMode] = useState(false);
   const [customFood, setCustomFood] = useState<CustomFoodFormState>(EMPTY_CUSTOM_FOOD);
   const [resultSelections, setResultSelections] = useState<Record<string, ResultSelectionState>>({});
+  const [scanMode, setScanMode] = useState<ScanMode | null>(null);
+  // undefined = closed, null = new recipe
+  const [editingRecipe, setEditingRecipe] = useState<NutritionRecipe | null | undefined>(undefined);
+  const [recipeServings, setRecipeServings] = useState<Record<number, string>>({});
 
   const deferredQuery = useDeferredValue(query);
   const searchQuery = useNutritionFoodSearch(deferredQuery, open);
+  const savedMealsQuery = useNutritionSavedMeals(open);
   const createEntry = useCreateNutritionEntry();
   const createCustomFood = useCreateCustomFood();
+  const logSavedMeal = useLogSavedMeal();
+  const recipesQuery = useNutritionRecipes(open);
+  const logRecipe = useLogRecipe();
+  const deleteRecipe = useDeleteRecipe();
 
   useEffect(() => {
     if (!open) {
@@ -272,6 +308,60 @@ export function AddFoodDialog({
     }
   };
 
+  const handleLogSavedMeal = async (savedMeal: NutritionSavedMeal) => {
+    try {
+      await logSavedMeal.mutateAsync({
+        id: savedMeal.id,
+        payload: {
+          entry_date: entryDate,
+          meal_type: mealType,
+        },
+      });
+      toast({
+        title: "Saved meal logged",
+        description: `${savedMeal.name} was added to ${MEAL_LABELS[mealType].toLowerCase()}.`,
+      });
+      onOpenChange(false);
+    } catch (error) {
+      toast({
+        title: "Could not log saved meal",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleLogRecipe = async (recipe: NutritionRecipe) => {
+    const servings = Math.max(0.01, toNumber(recipeServings[recipe.id] ?? "1", 1));
+    try {
+      await logRecipe.mutateAsync({ id: recipe.id, entry_date: entryDate, meal_type: mealType, servings });
+      toast({
+        title: "Recipe logged",
+        description: `${recipe.name} was added to ${MEAL_LABELS[mealType].toLowerCase()}.`,
+      });
+      onOpenChange(false);
+    } catch (error) {
+      toast({
+        title: "Could not log recipe",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteRecipe = async (recipe: NutritionRecipe) => {
+    if (!window.confirm(`Delete "${recipe.name}"?`)) return;
+    try {
+      await deleteRecipe.mutateAsync(recipe.id);
+    } catch (error) {
+      toast({
+        title: "Could not delete recipe",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const updateResultSelection = (
     resultId: string,
     updates: Partial<ResultSelectionState>,
@@ -291,9 +381,32 @@ export function AddFoodDialog({
         <DialogHeader>
           <DialogTitle>Add food to {MEAL_LABELS[mealType]}</DialogTitle>
           <DialogDescription>
-            Search USDA and your saved foods, pick a quantity and unit, or create a custom item.
+            Search foods, scan a meal or label, or log one of your recipes.
           </DialogDescription>
         </DialogHeader>
+
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Button variant="outline" className="h-auto flex-col gap-1 py-3" onClick={() => setScanMode("meal")}>
+            <Camera className="h-4 w-4" />
+            <span>Meal photo</span>
+          </Button>
+          <Button variant="outline" className="h-auto flex-col gap-1 py-3" onClick={() => setScanMode("label")}>
+            <FileText className="h-4 w-4" />
+            <span>Nutrition label</span>
+          </Button>
+          <Button variant="outline" className="h-auto flex-col gap-1 py-3" onClick={() => setEditingRecipe(null)}>
+            <BookOpen className="h-4 w-4" />
+            <span>Create recipe</span>
+          </Button>
+          <Button
+            variant={customMode ? "secondary" : "outline"}
+            className="h-auto flex-col gap-1 py-3"
+            onClick={() => setCustomMode((value) => !value)}
+          >
+            <Plus className="h-4 w-4" />
+            <span>{customMode ? "Hide custom food" : "Custom food"}</span>
+          </Button>
+        </div>
 
         <Input
           placeholder="Search foods"
@@ -301,20 +414,11 @@ export function AddFoodDialog({
           onChange={(event) => setQuery(event.target.value)}
         />
 
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            {query.trim()
-              ? "Select the result you want, then choose quantity and unit."
-              : "Recent foods and saved custom foods appear here when the search box is empty."}
-          </p>
-          <Button
-            variant={customMode ? "secondary" : "outline"}
-            size="sm"
-            onClick={() => setCustomMode((value) => !value)}
-          >
-            {customMode ? "Hide custom form" : "Create custom food"}
-          </Button>
-        </div>
+        <p className="text-sm text-muted-foreground">
+          {query.trim()
+            ? "Select the result you want, then choose quantity and unit."
+            : "Your recipes, saved meals, recent foods and custom foods appear here when the search box is empty."}
+        </p>
 
         {customMode && (
           <div className="grid gap-3 rounded-xl border border-border bg-card/60 p-4 md:grid-cols-2">
@@ -487,6 +591,116 @@ export function AddFoodDialog({
 
         <ScrollArea className="h-[420px] rounded-xl border border-border">
           <div className="space-y-3 p-4">
+            {!query.trim() && recipesQuery.data && recipesQuery.data.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">My recipes</p>
+                  <p className="text-xs text-muted-foreground">{recipesQuery.data.length} saved</p>
+                </div>
+                {recipesQuery.data.map((recipe) => (
+                  <div key={recipe.id} className="rounded-xl border border-border bg-background/80 p-4">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-base font-semibold">{recipe.name}</h3>
+                          <Badge variant="secondary">Recipe</Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Per serving: {formatNutritionNumber(recipe.per_serving.calories)} kcal • P{" "}
+                          {formatNutritionNumber(recipe.per_serving.protein_grams)}g • C{" "}
+                          {formatNutritionNumber(recipe.per_serving.carbs_grams)}g • F{" "}
+                          {formatNutritionNumber(recipe.per_serving.fat_grams)}g
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {recipe.ingredient_count} ingredient{recipe.ingredient_count === 1 ? "" : "s"} • makes{" "}
+                          {formatNutritionNumber(recipe.servings_count)} serving{recipe.servings_count === 1 ? "" : "s"}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          className="w-20"
+                          type="number"
+                          min="0.25"
+                          step="0.25"
+                          aria-label={`Servings of ${recipe.name}`}
+                          value={recipeServings[recipe.id] ?? "1"}
+                          onChange={(event) =>
+                            setRecipeServings((current) => ({ ...current, [recipe.id]: event.target.value }))
+                          }
+                        />
+                        <Button onClick={() => handleLogRecipe(recipe)} disabled={logRecipe.isPending}>
+                          {logRecipe.isPending ? "Adding..." : "Add"}
+                        </Button>
+                        <Button variant="ghost" size="icon" aria-label={`Edit ${recipe.name}`} onClick={() => setEditingRecipe(recipe)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Delete ${recipe.name}`}
+                          onClick={() => handleDeleteRecipe(recipe)}
+                          disabled={deleteRecipe.isPending}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {!query.trim() && savedMealsQuery.data && savedMealsQuery.data.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">Saved meals</p>
+                  <p className="text-xs text-muted-foreground">
+                    {savedMealsQuery.data.length} saved
+                  </p>
+                </div>
+                {savedMealsQuery.data.map((savedMeal) => (
+                  <div
+                    key={savedMeal.id}
+                    className="rounded-xl border border-border bg-background/80 p-4"
+                  >
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-base font-semibold">{savedMeal.name}</h3>
+                          <Badge variant="secondary">Saved meal</Badge>
+                          {savedMeal.meal_type && (
+                            <Badge variant="outline">{MEAL_LABELS[savedMeal.meal_type]}</Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {savedMeal.item_count} item{savedMeal.item_count === 1 ? "" : "s"} •{" "}
+                          {formatNutritionNumber(savedMeal.totals.calories)} kcal • P{" "}
+                          {formatNutritionNumber(savedMeal.totals.protein_grams)}g • C{" "}
+                          {formatNutritionNumber(savedMeal.totals.carbs_grams)}g • F{" "}
+                          {formatNutritionNumber(savedMeal.totals.fat_grams)}g
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {savedMeal.items
+                            .slice(0, 3)
+                            .map((item) =>
+                              formatQuantityWithUnit(item.quantity, item.serving_description),
+                            )
+                            .join(" • ")}
+                          {savedMeal.items.length > 3 ? " • more" : ""}
+                        </p>
+                      </div>
+                      <Button
+                        onClick={() => handleLogSavedMeal(savedMeal)}
+                        disabled={logSavedMeal.isPending}
+                      >
+                        {logSavedMeal.isPending ? "Adding..." : "Add meal"}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {searchQuery.isLoading && (
               <p className="text-sm text-muted-foreground">Loading food results...</p>
             )}
@@ -503,6 +717,9 @@ export function AddFoodDialog({
                 unitKey: result.default_unit_key,
               };
               const selectedUnit = getSelectedUnit(result, selection.unitKey);
+              const quantity = Math.max(0.01, toNumber(selection.quantity, 1));
+              const previewTotals = buildPreviewTotals(selectedUnit, quantity);
+              const selectedAmount = formatQuantityWithUnit(quantity, selectedUnit.label);
 
               return (
                 <div
@@ -527,6 +744,22 @@ export function AddFoodDialog({
                           {formatNutritionNumber(selectedUnit.carbs_grams)}g • F{" "}
                           {formatNutritionNumber(selectedUnit.fat_grams)}g
                         </p>
+                        <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm">
+                          <p className="font-medium">
+                            Total for {selectedAmount}: {formatNutritionNumber(previewTotals.calories)} kcal
+                          </p>
+                          <p className="text-muted-foreground">
+                            P {formatNutritionNumber(previewTotals.protein_grams)}g • C{" "}
+                            {formatNutritionNumber(previewTotals.carbs_grams)}g • F{" "}
+                            {formatNutritionNumber(previewTotals.fat_grams)}g
+                            {previewTotals.fiber_grams
+                              ? ` • Fiber ${formatNutritionNumber(previewTotals.fiber_grams)}g`
+                              : ""}
+                            {previewTotals.total_grams
+                              ? ` • ${formatNutritionNumber(previewTotals.total_grams)}g total`
+                              : ""}
+                          </p>
+                        </div>
                       </div>
                     </div>
 
@@ -566,6 +799,19 @@ export function AddFoodDialog({
             })}
           </div>
         </ScrollArea>
+
+        <ScanFoodDialog
+          mode={scanMode}
+          onOpenChange={(isOpen) => !isOpen && setScanMode(null)}
+          mealType={mealType}
+          entryDate={entryDate}
+          onLogged={() => onOpenChange(false)}
+        />
+        <RecipeEditorDialog
+          open={editingRecipe !== undefined}
+          onOpenChange={(isOpen) => !isOpen && setEditingRecipe(undefined)}
+          recipe={editingRecipe ?? null}
+        />
       </DialogContent>
     </Dialog>
   );

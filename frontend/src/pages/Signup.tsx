@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { CookieConsentDialog } from "@/components/CookieConsentDialog";
-import { withBackendPath } from "@/lib/env";
 import {
   clearNonEssentialCookies,
   CookieConsentStatus,
@@ -10,6 +9,7 @@ import {
   setCookieConsentStatus,
 } from "@/lib/cookie-consent";
 import { isAuthenticated, setAuthTokens } from "@/lib/auth";
+import { BACKEND_ORIGIN } from "@/lib/api";
 
 export default function Signup() {
   const [username, setUsername] = useState("");
@@ -21,6 +21,9 @@ export default function Signup() {
   const [showConsentDialog, setShowConsentDialog] = useState(false);
 
   const navigate = useNavigate();
+  const location = useLocation();
+  const from =
+    (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || "/dashboard";
 
   useEffect(() => {
     setConsentStatus(getCookieConsentStatus());
@@ -29,17 +32,17 @@ export default function Signup() {
 
   useEffect(() => {
     if (hasTokens && consentStatus) {
-      navigate("/dashboard", { replace: true });
+      navigate(from, { replace: true });
     } else if (hasTokens && consentStatus === null) {
       setShowConsentDialog(true);
     }
-  }, [consentStatus, hasTokens, navigate]);
+  }, [consentStatus, hasTokens, navigate, from]);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
-      const res = await fetch(withBackendPath("/accounts/register/"), {
+      const res = await fetch(`${BACKEND_ORIGIN}/accounts/register/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, email, password }),
@@ -55,7 +58,7 @@ export default function Signup() {
         setHasTokens(true);
 
         if (existingConsent) {
-          navigate("/dashboard", { replace: true });
+          navigate(from, { replace: true });
         } else {
           setShowConsentDialog(true);
         }
@@ -72,7 +75,7 @@ export default function Signup() {
   const handleOAuth = async (provider: "google" | "facebook") => {
     try {
       const res = await fetch(
-        `${withBackendPath(`/accounts/oauth/${provider}/start/`)}?next=/dashboard`,
+        `${BACKEND_ORIGIN}/accounts/oauth/${provider}/start/?next=${encodeURIComponent(from)}`,
       );
       const data = await res.json();
       if (data.authorize_url) {
@@ -183,7 +186,7 @@ export default function Signup() {
 
               <p className="text-center text-sm text-muted-foreground">
                 Already have an account?{" "}
-                <Link to="/login" className="font-semibold text-foreground transition hover:text-primary">
+                <Link to="/login" state={location.state} className="font-semibold text-foreground transition hover:text-primary">
                   Log in
                 </Link>
               </p>
@@ -232,14 +235,14 @@ export default function Signup() {
           setCookieConsentStatus("accepted");
           setConsentStatus("accepted");
           setShowConsentDialog(false);
-          navigate("/dashboard", { replace: true });
+          navigate(from, { replace: true });
         }}
         onDecline={() => {
           setCookieConsentStatus("declined");
           clearNonEssentialCookies();
           setConsentStatus("declined");
           setShowConsentDialog(false);
-          navigate("/dashboard", { replace: true });
+          navigate(from, { replace: true });
         }}
       />
     </div>

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from rest_framework import serializers
 
+from .services import _history_limit
+
 
 class InsightAIHistoryMessageSerializer(serializers.Serializer):
     role = serializers.ChoiceField(choices=("user", "assistant", "model"))
@@ -27,7 +29,7 @@ class InsightAIChatSerializer(serializers.Serializer):
     mime_type = serializers.CharField(max_length=100, required=False, default="image/jpeg")
 
     def validate_history(self, value):
-        return value[-10:]
+        return value[-_history_limit():]
 
     def validate(self, attrs):
         if not attrs.get("message") and not attrs.get("image_base64"):

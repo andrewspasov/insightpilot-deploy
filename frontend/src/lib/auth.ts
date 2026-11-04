@@ -1,3 +1,5 @@
+import { clearChatHistory } from "@/lib/chat-history";
+
 // This function gets the access token from localStorage
 export function getAccessToken(): string | null {
   if (typeof window === "undefined") return null; // Safety check for SSR
@@ -22,4 +24,6 @@ export function logout(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem("access_token");
   localStorage.removeItem("refresh_token");
+  // The saved AI chat belongs to the account that is signing out.
+  clearChatHistory();
 }

@@ -56,9 +56,21 @@ class InsightAIAction(models.Model):
     ]
 
     TYPE_LOG_MEAL = "log_meal"
+    TYPE_CREATE_PLAN = "create_plan"
+    TYPE_UPDATE_PROGRAM = "update_program"
+    TYPE_DELETE_PLAN = "delete_plan"
+    TYPE_UPDATE_PLAN = "update_plan"
+    TYPE_EDIT_DIARY = "edit_diary"
+    TYPE_LOG_WEIGHT = "log_weight"
 
     ACTION_TYPE_CHOICES = [
         (TYPE_LOG_MEAL, "Log meal"),
+        (TYPE_CREATE_PLAN, "Create plan"),
+        (TYPE_UPDATE_PROGRAM, "Update workout program"),
+        (TYPE_DELETE_PLAN, "Delete plan"),
+        (TYPE_UPDATE_PLAN, "Change plan pace"),
+        (TYPE_EDIT_DIARY, "Edit diary"),
+        (TYPE_LOG_WEIGHT, "Log weight"),
     ]
 
     user = models.ForeignKey(
@@ -85,3 +97,21 @@ class InsightAIAction(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user_id} {self.action_type} {self.status}"
+
+
+class InsightAIChat(models.Model):
+    """The user's coach conversation, shared by the phone and the website."""
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="insight_ai_chat",
+    )
+    messages = models.JSONField(default=list, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Insight AI chat"
+
+    def __str__(self) -> str:
+        return f"{self.user_id} chat ({len(self.messages)} messages)"

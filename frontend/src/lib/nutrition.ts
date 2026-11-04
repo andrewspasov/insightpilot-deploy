@@ -8,13 +8,24 @@ export const MEAL_LABELS: Record<NutritionMealType, string> = {
 };
 
 export function getTodayIsoDate() {
-  return new Date().toISOString().slice(0, 10);
+  return localDateToIsoDate(new Date());
+}
+
+export function isoDateToLocalDate(dateValue: string) {
+  return new Date(`${dateValue}T12:00:00`);
+}
+
+export function localDateToIsoDate(dateValue: Date) {
+  const year = dateValue.getFullYear();
+  const month = String(dateValue.getMonth() + 1).padStart(2, "0");
+  const day = String(dateValue.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 export function shiftIsoDate(dateValue: string, deltaDays: number) {
-  const next = new Date(`${dateValue}T12:00:00`);
+  const next = isoDateToLocalDate(dateValue);
   next.setDate(next.getDate() + deltaDays);
-  return next.toISOString().slice(0, 10);
+  return localDateToIsoDate(next);
 }
 
 export function formatIsoDate(dateValue: string) {
@@ -22,7 +33,16 @@ export function formatIsoDate(dateValue: string) {
     weekday: "short",
     month: "short",
     day: "numeric",
-  }).format(new Date(`${dateValue}T12:00:00`));
+  }).format(isoDateToLocalDate(dateValue));
+}
+
+export function formatIsoDateLong(dateValue: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(isoDateToLocalDate(dateValue));
 }
 
 export function percentOfTarget(value: number, target: number) {
@@ -39,8 +59,22 @@ export function formatNutritionNumber(value: number) {
   return value.toFixed(2).replace(/\.?0+$/, "");
 }
 
-export function formatQuantityWithUnit(quantity: number, unitLabel: string) {
+function normalizeQuantityUnitLabel(quantity: number, unitLabel: string) {
   const cleanLabel = unitLabel.trim();
+  const match = cleanLabel.match(/^(\d+(?:\.\d+)?)\s+(.+)$/);
+  if (!match) {
+    return cleanLabel;
+  }
+
+  const [, labelQuantity, labelUnit] = match;
+  if (Number(labelQuantity) !== Number(formatNutritionNumber(quantity))) {
+    return cleanLabel;
+  }
+  return labelUnit.trim();
+}
+
+export function formatQuantityWithUnit(quantity: number, unitLabel: string) {
+  const cleanLabel = normalizeQuantityUnitLabel(quantity, unitLabel);
   if (!cleanLabel) {
     return formatNutritionNumber(quantity);
   }

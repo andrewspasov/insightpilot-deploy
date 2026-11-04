@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from django.db import transaction
+from django.db.models import Count, Q, Sum
 from django.utils import timezone
 from rest_framework import generics, permissions, status, viewsets
 from rest_framework.decorators import action
@@ -11,20 +12,56 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from billing.permissions import ToolAccessPermission
-from .models import CustomFood, ExerciseEntry, FastingSession, MealEntry, NutritionProfile, Recipe, SavedMeal, SavedMealItem, WaterEntry, WeightEntry
+from .models import (
+    CustomFood,
+    Exercise,
+    ExerciseEntry,
+    FastingSession,
+    MealEntry,
+    NutritionProfile,
+    Plan,
+    PlanExercise,
+    PlanMealOption,
+    PlanWorkoutDay,
+    Recipe,
+    SavedMeal,
+    SavedMealItem,
+    WaterEntry,
+    WeightEntry,
+    WorkoutSession,
+    WorkoutSet,
+)
 from .serializers import (
     CustomFoodSerializer,
+    ExerciseSerializer,
     MealEntrySerializer,
     NutritionProfileSerializer,
     ExerciseEntrySerializer,
     FastingSessionSerializer,
+    PlanExerciseSerializer,
+    PlanMealOptionSerializer,
+    PlanSerializer,
+    PlanSummarySerializer,
+    PlanWorkoutDaySerializer,
     RecipeSerializer,
     SavedMealSerializer,
     WaterEntrySerializer,
     WeightEntrySerializer,
+    WorkoutSessionSerializer,
 )
 from .services import search_foods_for_user
 from .coach import apply_recommendation, build_coach_report
+from . import food_images
+from . import plans as plan_service
+from .meal_library import AVOID_OPTIONS, LIKE_OPTIONS
+from .planning import PlanInputError
+from .program_templates import (
+    EQUIPMENT_CHOICES,
+    HOME_GEAR_CHOICES,
+    ProgramError,
+    split_summaries,
+    suggest_program,
+)
 
 
 MEAL_ORDER = [
@@ -169,7 +206,9 @@ class CustomFoodViewSet(viewsets.ModelViewSet):
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_queryset(self):
-        return CustomFood.objects.filter(owner=self.request.user).order_by("-is_favorite", "-updated_at")
+        queryset = CustomFood.objects.filter(owner=self.request.user).order_by("-is_favorite", "-updated_at")
+        barcode = (self.request.query_params.get("barcode") or "").strip()
+        return queryset.filter(barcode=barcode) if barcode else queryset
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
@@ -228,6 +267,58 @@ class MealEntryViewSet(viewsets.ModelViewSet):
             for entry in source_entries
         ]
         return Response(MealEntrySerializer(created_entries, many=True).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=["post"], url_path="copy-entries")
+    def copy_entries(self, request):
+        """Copy chosen entries to a date, into their own meals or all into target_meal_type."""
+        try:
+            target_date = _parse_date(request.data.get("target_date"))
+            target_meal_type = request.data.get("target_meal_type")
+            if target_meal_type:
+                _validate_meal_type(target_meal_type, "target_meal_type")
+            entry_ids = [int(i) for i in request.data.get("entry_ids") or []]
+        except (TypeError, ValueError) as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        source_entries = list(
+            MealEntry.objects.filter(owner=request.user, id__in=entry_ids).order_by("meal_type", "created_at")
+        )
+        if not source_entries:
+            return Response({"detail": "Choose at least one food to copy."}, status=status.HTTP_400_BAD_REQUEST)
+
+        created_entries = [
+            MealEntry.objects.create(
+                owner=request.user,
+                **_entry_copy_kwargs(entry, target_date, target_meal_type or entry.meal_type),
+            )
+            for entry in source_entries
+        ]
+        return Response(MealEntrySerializer(created_entries, many=True).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=["get"], url_path="calendar")
+    def calendar(self, request):
+        """Logged days in a month for the diary calendar: ?month=YYYY-MM."""
+        try:
+            first = datetime.strptime(str(request.query_params.get("month") or ""), "%Y-%m").date()
+        except ValueError:
+            return Response({"detail": "month must look like YYYY-MM."}, status=status.HTTP_400_BAD_REQUEST)
+        next_month = (first.replace(day=28) + timedelta(days=4)).replace(day=1)
+        rows = (
+            MealEntry.objects.filter(owner=request.user, entry_date__gte=first, entry_date__lt=next_month)
+            .values("entry_date")
+            .annotate(calories=Sum("calories"), entries=Count("id"))
+            .order_by("entry_date")
+        )
+        return Response(
+            {
+                "month": first.strftime("%Y-%m"),
+                "days": [
+                    {"date": row["entry_date"].isoformat(), "calories": round(row["calories"] or 0), "entries": row["entries"]}
+                    for row in rows
+                ],
+            },
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=False, methods=["post"], url_path="copy-day")
     def copy_day(self, request):
@@ -470,12 +561,14 @@ class NutritionOverviewView(APIView):
             ExerciseEntry.objects.filter(owner=request.user, entry_date=selected_date).order_by("created_at")
         )
         exercise_calories = round(sum(item.calories_burned for item in exercise_entries), 2)
+        exercise_budget = plan_service.exercise_budget(request.user, exercise_entries)
 
         totals = _build_totals(entries)
         remaining = _build_remaining(profile, totals)
-        # Calories burned through exercise extend the daily budget.
-        remaining["calories"] = round(remaining["calories"] + exercise_calories, 2)
-        entry_serializer = MealEntrySerializer(entries, many=True)
+        # Logged exercise may extend the daily budget (see plans.exercise_budget).
+        remaining["calories"] = round(remaining["calories"] + exercise_budget["calories"], 2)
+        photos = food_images.images_for(entry.food_name for entry in entries if not entry.image_url)
+        entry_serializer = MealEntrySerializer(entries, many=True, context={"food_images": photos})
 
         entries_by_id = {item["id"]: item for item in entry_serializer.data}
         meal_sections = []
@@ -505,6 +598,8 @@ class NutritionOverviewView(APIView):
                 "entries_count": len(entries),
                 "exercise_entries": ExerciseEntrySerializer(exercise_entries, many=True).data,
                 "exercise_calories": exercise_calories,
+                "exercise_budget_calories": exercise_budget["calories"],
+                "exercise_budget_note": exercise_budget["note"],
             },
             status=status.HTTP_200_OK,
         )
@@ -780,3 +875,352 @@ class NutritionCoachApplyView(APIView):
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(NutritionProfileSerializer(profile).data, status=status.HTTP_200_OK)
+
+
+def _plan_error(exc: Exception) -> Response:
+    return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ExerciseLibraryViewSet(viewsets.ReadOnlyModelViewSet):
+    """Search the shared exercise library: ?search=&muscle=&equipment=&category=&limit="""
+
+    serializer_class = ExerciseSerializer
+    permission_classes = [permissions.IsAuthenticated, ToolAccessPermission]
+    tool_key = "nutrition"
+
+    def get_queryset(self):
+        queryset = Exercise.objects.all().order_by("name")
+        params = self.request.query_params
+        for word in (params.get("search") or "").split():
+            queryset = queryset.filter(name__icontains=word)
+        muscle = (params.get("muscle") or "").strip().lower()
+        if muscle:
+            queryset = queryset.filter(
+                Q(primary_muscles__icontains=f'"{muscle}"') | Q(secondary_muscles__icontains=f'"{muscle}"')
+            )
+        for field in ("equipment", "category"):
+            value = (params.get(field) or "").strip().lower()
+            if value:
+                queryset = queryset.filter(**{field: value})
+        return queryset
+
+    def list(self, request, *args, **kwargs):
+        try:
+            limit = max(1, min(int(request.query_params.get("limit") or 50), 200))
+        except ValueError:
+            return Response({"detail": "limit must be an integer."}, status=status.HTTP_400_BAD_REQUEST)
+        queryset = self.get_queryset()
+        results = self.get_serializer(queryset[:limit], many=True).data
+        return Response({"count": queryset.count(), "results": results}, status=status.HTTP_200_OK)
+
+
+class PlanViewSet(viewsets.GenericViewSet):
+    """Plans: history list, detail, active plan, preview, create, change pace, archive."""
+
+    serializer_class = PlanSerializer
+    permission_classes = [permissions.IsAuthenticated, ToolAccessPermission]
+    tool_key = "nutrition"
+
+    def get_queryset(self):
+        return (
+            Plan.objects.filter(owner=self.request.user)
+            .prefetch_related("workout_days__exercises__exercise", "meal_options")
+            .order_by("-created_at")
+        )
+
+    def get_serializer(self, *args, **kwargs):
+        # Look up (and cache) photos for the plan's example meals in one go.
+        plan = args[0] if args else kwargs.get("instance")
+        if isinstance(plan, Plan):
+            context = kwargs.setdefault("context", self.get_serializer_context())
+            context["food_images"] = food_images.images_for(option.name for option in plan.meal_options.all())
+        return super().get_serializer(*args, **kwargs)
+
+    def list(self, request):
+        return Response(PlanSummarySerializer(self.get_queryset(), many=True).data, status=status.HTTP_200_OK)
+
+    def retrieve(self, request, pk=None):
+        plan = self.get_object()
+        plan_service.ensure_todays_meals(plan)
+        return Response(self.get_serializer(self.get_queryset().get(pk=plan.pk)).data, status=status.HTTP_200_OK)
+
+    def create(self, request):
+        try:
+            plan = plan_service.create_plan(request.user, request.data)
+        except PlanInputError as exc:
+            return _plan_error(exc)
+        plan = self.get_queryset().get(pk=plan.pk)
+        return Response(self.get_serializer(plan).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=["get"], url_path="active")
+    def active(self, request):
+        plan = self.get_queryset().filter(status=Plan.STATUS_ACTIVE).first()
+        if plan and plan.meals_date != timezone.localdate():
+            plan_service.ensure_todays_meals(plan)
+            plan = self.get_queryset().get(pk=plan.pk)
+        return Response(
+            {"plan": self.get_serializer(plan).data if plan else None},
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=["post"], url_path="preview")
+    def preview(self, request):
+        try:
+            result = plan_service.preview_plan(request.user, request.data)
+        except PlanInputError as exc:
+            return _plan_error(exc)
+        return Response(result, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"], url_path="set-pace")
+    def set_pace(self, request, pk=None):
+        plan = self.get_object()
+        try:
+            plan = plan_service.set_plan_pace(plan, str(request.data.get("pace") or "").strip().lower())
+        except PlanInputError as exc:
+            return _plan_error(exc)
+        return Response(self.get_serializer(plan).data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"], url_path="suggest-exercises")
+    def suggest_exercises(self, request, pk=None):
+        """Fill days from their titles. Body: day_ids (default: all days), replace, equipment, include_abs, home_gear."""
+        plan = self.get_object()
+        day_ids = request.data.get("day_ids") or list(plan.workout_days.values_list("id", flat=True))
+        include_abs = request.data.get("include_abs")
+        home_gear = request.data.get("home_gear")
+        result = plan_service.suggest_exercises_for_days(
+            plan,
+            [int(i) for i in day_ids],
+            replace=bool(request.data.get("replace")),
+            equipment=request.data.get("equipment") or None,
+            include_abs=None if include_abs is None else bool(include_abs),
+            home_gear=home_gear if isinstance(home_gear, list) else None,
+        )
+        plan = self.get_queryset().get(pk=plan.pk)
+        return Response({**result, "plan": self.get_serializer(plan).data}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"], url_path="suggest-meals")
+    def suggest_meals(self, request, pk=None):
+        """Built-in example meals (no AI); fresh=true prefers meals not shown yet."""
+        plan = self.get_object()
+        empty = plan_service.fill_builtin_meals(plan, fresh=bool(request.data.get("fresh", True)))
+        plan = self.get_queryset().get(pk=plan.pk)
+        return Response({"no_options_for": empty, "plan": self.get_serializer(plan).data}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"], url_path="apply-check-in")
+    def apply_check_in(self, request, pk=None):
+        try:
+            plan = plan_service.apply_check_in(self.get_object())
+        except PlanInputError as exc:
+            return _plan_error(exc)
+        return Response(self.get_serializer(self.get_queryset().get(pk=plan.pk)).data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"], url_path="switch-to-maintain")
+    def switch_to_maintain(self, request, pk=None):
+        plan = self.get_object()
+        if plan.status != Plan.STATUS_ACTIVE:
+            return Response({"detail": "Only the active plan can be switched."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            new_plan = plan_service.switch_to_maintain(plan)
+        except PlanInputError as exc:
+            return _plan_error(exc)
+        return Response(
+            self.get_serializer(self.get_queryset().get(pk=new_plan.pk)).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=["post"], url_path="archive")
+    def archive(self, request, pk=None):
+        plan = plan_service.archive_plan(self.get_object())
+        return Response(self.get_serializer(plan).data, status=status.HTTP_200_OK)
+
+
+class PlanWorkoutDayViewSet(viewsets.ModelViewSet):
+    serializer_class = PlanWorkoutDaySerializer
+    permission_classes = [permissions.IsAuthenticated, ToolAccessPermission]
+    tool_key = "nutrition"
+
+    def get_queryset(self):
+        return PlanWorkoutDay.objects.filter(plan__owner=self.request.user).prefetch_related(
+            "exercises__exercise"
+        )
+
+
+class PlanExerciseViewSet(viewsets.ModelViewSet):
+    """Add, swap (PATCH exercise_id), edit or remove exercises in a plan day."""
+
+    serializer_class = PlanExerciseSerializer
+    permission_classes = [permissions.IsAuthenticated, ToolAccessPermission]
+    tool_key = "nutrition"
+
+    def get_queryset(self):
+        return PlanExercise.objects.filter(day__plan__owner=self.request.user).select_related("exercise")
+
+
+class PlanMealOptionViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = PlanMealOptionSerializer
+    permission_classes = [permissions.IsAuthenticated, ToolAccessPermission]
+    tool_key = "nutrition"
+
+    def get_queryset(self):
+        return PlanMealOption.objects.filter(plan__owner=self.request.user)
+
+    @action(detail=True, methods=["post"], url_path="log")
+    def log(self, request, pk=None):
+        option = self.get_object()
+        try:
+            entry_date = _parse_date(request.data.get("entry_date"))
+            meal_type = request.data.get("meal_type")
+            if meal_type:
+                meal_type = _validate_meal_type(meal_type)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        entries = plan_service.log_meal_option(option, entry_date, meal_type)
+        return Response(MealEntrySerializer(entries, many=True).data, status=status.HTTP_201_CREATED)
+
+
+class WorkoutSessionViewSet(viewsets.ModelViewSet):
+    serializer_class = WorkoutSessionSerializer
+    permission_classes = [permissions.IsAuthenticated, ToolAccessPermission]
+    tool_key = "nutrition"
+
+    def get_queryset(self):
+        queryset = (
+            WorkoutSession.objects.filter(owner=self.request.user)
+            .select_related("exercise_entry")
+            .prefetch_related("sets")
+            .order_by("-entry_date", "-started_at")
+        )
+        entry_date = self.request.query_params.get("date")
+        if entry_date:
+            try:
+                queryset = queryset.filter(entry_date=_parse_date(entry_date))
+            except ValueError:
+                return queryset.none()
+        return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
+
+    def perform_destroy(self, instance):
+        # Removing a workout also removes its line in the exercise log.
+        if instance.exercise_entry_id:
+            instance.exercise_entry.delete()
+        instance.delete()
+
+    @action(detail=True, methods=["post"], url_path="complete")
+    def complete(self, request, pk=None):
+        session = self.get_object()
+        duration = request.data.get("duration_min")
+        try:
+            duration = int(duration) if duration not in (None, "") else None
+        except (TypeError, ValueError):
+            return Response({"detail": "duration_min must be a whole number."}, status=status.HTTP_400_BAD_REQUEST)
+        session = plan_service.complete_workout(session, duration)
+        return Response(self.get_serializer(session).data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=["get"], url_path="last-performance")
+    def last_performance(self, request):
+        """Sets from the most recent completed workout containing an exercise.
+
+        ?exercise=<library id> or ?plan_exercise=<id>; optional &exclude_session=<id>.
+        """
+        sets = WorkoutSet.objects.filter(
+            session__owner=request.user,
+            session__completed_at__isnull=False,
+            completed=True,
+        )
+        exercise_id = request.query_params.get("exercise")
+        plan_exercise_id = request.query_params.get("plan_exercise")
+        if exercise_id:
+            sets = sets.filter(exercise_id=exercise_id)
+        elif plan_exercise_id:
+            plan_exercise = PlanExercise.objects.filter(
+                id=plan_exercise_id, day__plan__owner=request.user
+            ).first()
+            if plan_exercise is None:
+                return Response({"session": None, "sets": []}, status=status.HTTP_200_OK)
+            match = Q(plan_exercise=plan_exercise)
+            if plan_exercise.exercise_id:
+                match |= Q(exercise_id=plan_exercise.exercise_id)
+            sets = sets.filter(match)
+        else:
+            return Response(
+                {"detail": "Pass exercise or plan_exercise."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        exclude = request.query_params.get("exclude_session")
+        if exclude:
+            sets = sets.exclude(session_id=exclude)
+        latest = sets.order_by("-session__entry_date", "-session__started_at").first()
+        if latest is None:
+            return Response({"session": None, "sets": []}, status=status.HTTP_200_OK)
+        session_sets = sets.filter(session_id=latest.session_id).order_by("set_number", "id")
+        return Response(
+            {
+                "session": {"id": latest.session_id, "entry_date": str(latest.session.entry_date)},
+                "sets": [
+                    {
+                        "set_number": s.set_number,
+                        "reps": s.reps,
+                        "weight_kg": s.weight_kg,
+                        "duration_min": s.duration_min,
+                        "distance_km": s.distance_km,
+                    }
+                    for s in session_sets
+                ],
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class PlanOptionsView(APIView):
+    """Choices for the plan form: ready-made splits, equipment and food preferences."""
+
+    permission_classes = [permissions.IsAuthenticated, ToolAccessPermission]
+    tool_key = "nutrition"
+
+    def get(self, request):
+        as_list = lambda pairs: [{"key": key, "label": label} for key, label in pairs]  # noqa: E731
+        return Response(
+            {
+                "splits": split_summaries(),
+                "equipment": as_list(EQUIPMENT_CHOICES),
+                "home_gear": as_list(HOME_GEAR_CHOICES),
+                "liked_foods": as_list(LIKE_OPTIONS),
+                "avoided_foods": as_list(AVOID_OPTIONS),
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class ProgramSuggestView(APIView):
+    """Exercises for a ready-made split or for the user's own day titles (no AI)."""
+
+    permission_classes = [permissions.IsAuthenticated, ToolAccessPermission]
+    tool_key = "nutrition"
+
+    def post(self, request):
+        profile = plan_service.get_or_create_profile(request.user)
+        data = request.data
+        try:
+            result = suggest_program(
+                equipment=data.get("equipment") or profile.equipment,
+                goal=str(data.get("goal_type") or NutritionProfile.GOAL_MAINTAIN),
+                include_abs=bool(data.get("include_abs", profile.include_abs)),
+                gear=data["home_gear"] if isinstance(data.get("home_gear"), list) else profile.home_gear,
+                split=data.get("split") or None,
+                weekdays=data.get("weekdays") or None,
+                days=data.get("days") or None,
+            )
+        except (ProgramError, TypeError, ValueError) as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Attach images so the form can show what it picked.
+        ids = {e["exercise_id"] for day in result["days"] for e in day["exercises"]}
+        library = {e.id: e for e in Exercise.objects.filter(id__in=ids)}
+        for day in result["days"]:
+            for entry in day["exercises"]:
+                exercise = library.get(entry["exercise_id"])
+                entry["image_urls"] = exercise.image_urls if exercise else []
+                entry["primary_muscles"] = exercise.primary_muscles if exercise else []
+        return Response(result, status=status.HTTP_200_OK)

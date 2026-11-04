@@ -85,3 +85,23 @@ class CreateSubscriptionViewTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
         self.assertIn("already have a subscription", response.data["detail"])
+
+
+class PriceToPassMappingTests(APITestCase):
+    def test_old_and_new_prices_both_map_to_the_pass(self):
+        from billing.sync import _map_price_to_pass
+
+        bronze, _ = AccessPass.objects.update_or_create(
+            key=AccessPass.KEY_BRONZE,
+            defaults={
+                "name": "Bronze",
+                "monthly_price_cents": 500,
+                "tool_limit": 1,
+                "stripe_price_id": "price_new",
+                "previous_stripe_price_ids": ["price_old"],
+            },
+        )
+
+        self.assertEqual(_map_price_to_pass(["price_new"]), (bronze, "price_new"))
+        self.assertEqual(_map_price_to_pass(["price_old"]), (bronze, "price_old"))
+        self.assertEqual(_map_price_to_pass(["price_unknown"]), (None, "price_unknown"))

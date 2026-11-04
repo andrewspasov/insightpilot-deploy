@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { withBackendPath } from "@/lib/env";
+import { BACKEND_ORIGIN } from "@/lib/api";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -13,7 +13,7 @@ export default function ForgotPassword() {
     setIsSending(true);
 
     try {
-      const res = await fetch(withBackendPath("/accounts/password-reset/"), {
+      const res = await fetch(`${BACKEND_ORIGIN}/accounts/password-reset/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),

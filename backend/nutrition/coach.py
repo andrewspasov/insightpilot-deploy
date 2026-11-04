@@ -11,7 +11,10 @@ from datetime import timedelta
 
 from django.utils import timezone
 
-from .models import MealEntry, NutritionProfile, WeightEntry
+from .models import MealEntry, NutritionProfile, Plan, WeightEntry
+from .planning import FAT_CALORIE_SHARE as PLAN_FAT_SHARE
+from .planning import MIN_CALORIES as PLAN_MIN_CALORIES
+from .planning import PROTEIN_G_PER_KG as PLAN_PROTEIN_G_PER_KG
 
 WINDOW_DAYS = 28
 KCAL_PER_KG = 7700.0
@@ -30,7 +33,10 @@ GOAL_WEEKLY_RATES = {
 MIN_CALORIES = 1200
 
 
-def build_coach_report(user, profile: NutritionProfile) -> dict:
+def build_coach_report(user, profile: NutritionProfile, plan: Plan | None = None) -> dict:
+    """With an active plan, the recommendation follows the plan's pace and macro rules."""
+    if plan is None:
+        plan = Plan.objects.filter(owner=user, status=Plan.STATUS_ACTIVE).first()
     today = timezone.localdate()
     start = today - timedelta(days=WINDOW_DAYS - 1)
 
@@ -107,26 +113,37 @@ def build_coach_report(user, profile: NutritionProfile) -> dict:
 
     # Recommendation
     recommendation = None
-    if expenditure is not None and profile.goal_type in GOAL_WEEKLY_RATES:
-        weekly_rate = GOAL_WEEKLY_RATES[profile.goal_type]
+    goal_type = plan.goal_type if plan else profile.goal_type
+    if expenditure is not None and goal_type in GOAL_WEEKLY_RATES:
         weight_for_rate = latest_trend_weight or 75.0
+        if plan:
+            # Keep the plan's chosen pace (as a share of body weight) and macro rules.
+            weekly_rate = plan.weekly_change_kg / plan.start_weight_kg if plan.start_weight_kg else 0.0
+            protein_per_kg = PLAN_PROTEIN_G_PER_KG[plan.goal_type]
+            fat_share = PLAN_FAT_SHARE
+            floor = PLAN_MIN_CALORIES.get(plan.sex, MIN_CALORIES)
+        else:
+            weekly_rate = GOAL_WEEKLY_RATES[goal_type]
+            protein_per_kg = PROTEIN_G_PER_KG
+            fat_share = FAT_CALORIE_SHARE
+            floor = MIN_CALORIES
         weekly_change_kg = round(weekly_rate * weight_for_rate, 2)
         daily_adjustment = (weekly_change_kg * KCAL_PER_KG) / 7.0
-        target_calories = int(round(max(expenditure + daily_adjustment, MIN_CALORIES)))
+        target_calories = int(round(max(expenditure + daily_adjustment, floor)))
 
-        protein_g = round(PROTEIN_G_PER_KG * weight_for_rate, 0)
-        fat_g = round((target_calories * FAT_CALORIE_SHARE) / 9.0, 0)
+        protein_g = round(protein_per_kg * weight_for_rate, 0)
+        fat_g = round((target_calories * fat_share) / 9.0, 0)
         carbs_g = round(
             max(target_calories - protein_g * 4 - fat_g * 9, 0) / 4.0, 0
         )
 
-        if profile.goal_type == NutritionProfile.GOAL_LOSE:
+        if goal_type == NutritionProfile.GOAL_LOSE:
             rationale = (
                 f"Your estimated expenditure is {int(expenditure)} kcal/day. "
                 f"To lose about {abs(weekly_change_kg)} kg/week, eat around "
                 f"{target_calories} kcal/day."
             )
-        elif profile.goal_type == NutritionProfile.GOAL_GAIN:
+        elif goal_type == NutritionProfile.GOAL_GAIN:
             rationale = (
                 f"Your estimated expenditure is {int(expenditure)} kcal/day. "
                 f"To gain about {abs(weekly_change_kg)} kg/week (lean bulk), eat around "
@@ -159,7 +176,7 @@ def build_coach_report(user, profile: NutritionProfile) -> dict:
         "trend_change_kg": trend_change,
         "latest_trend_weight": latest_trend_weight,
         "current_target": profile.daily_calorie_target,
-        "goal_type": profile.goal_type,
+        "goal_type": goal_type,
         "recommendation": recommendation,
     }
 

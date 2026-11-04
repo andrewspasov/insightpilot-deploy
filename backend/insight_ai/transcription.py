@@ -14,6 +14,7 @@ from django.conf import settings
 
 from .models import InsightAIUsage
 from .services import (
+    TRANSCRIPTION_PREVIEW,
     AIProviderRequestError,
     _extract_gemini_text,
     _preview,
@@ -58,7 +59,7 @@ def transcribe_audio(user, audio_base64: str, mime_type: str = "audio/m4a") -> s
         provider=provider,
         model=model,
         status=InsightAIUsage.STATUS_SUCCESS,
-        message_preview="[voice transcription]",
+        message_preview=TRANSCRIPTION_PREVIEW,
         response_preview=_preview(text),
     )
     return text

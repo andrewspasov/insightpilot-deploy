@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import shutil
 import tempfile
-from datetime import timedelta
+from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -160,6 +160,75 @@ class NutritionApiTests(APITestCase):
         self.assertEqual(copied.food_name, "Banana")
         self.assertEqual(copied.calories, 178.0)
         self.assertEqual(copied.total_grams, 200.0)
+
+    def test_copy_entries_copies_chosen_foods_to_any_date_and_meal(self):
+        source = date(2026, 10, 3)
+        target = date(2026, 10, 15)
+        banana = self.client.post(
+            "/api/nutrition/entries/", self._demo_entry_payload(source, meal_type="breakfast"), format="json"
+        ).data
+        yogurt = self.client.post(
+            "/api/nutrition/entries/",
+            self._demo_entry_payload(source, meal_type="lunch", food_name="Greek Yogurt"),
+            format="json",
+        ).data
+        self.client.post(
+            "/api/nutrition/entries/", self._demo_entry_payload(source, meal_type="dinner", food_name="Rice"), format="json"
+        )
+
+        response = self.client.post(
+            "/api/nutrition/entries/copy-entries/",
+            {"entry_ids": [banana["id"], yogurt["id"]], "target_date": str(target)},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        copied = MealEntry.objects.filter(owner=self.user, entry_date=target)
+        self.assertEqual(
+            sorted(copied.values_list("food_name", "meal_type")), [("Banana", "breakfast"), ("Greek Yogurt", "lunch")]
+        )
+
+        into_snacks = self.client.post(
+            "/api/nutrition/entries/copy-entries/",
+            {"entry_ids": [yogurt["id"]], "target_date": str(target), "target_meal_type": "snacks"},
+            format="json",
+        )
+        self.assertEqual(into_snacks.data[0]["meal_type"], "snacks")
+
+        other = User.objects.create_user(username="other", email="other@example.com", password="secure-pass-123")
+        self._grant_tool_access(other)
+        self.client.force_authenticate(user=other)
+        theirs = self.client.post("/api/nutrition/entries/", self._demo_entry_payload(source), format="json").data
+        self.client.force_authenticate(user=self.user)
+        stolen = self.client.post(
+            "/api/nutrition/entries/copy-entries/",
+            {"entry_ids": [theirs["id"]], "target_date": str(target)},
+            format="json",
+        )
+        self.assertEqual(stolen.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_calendar_lists_logged_days_in_the_month(self):
+        for day, meal in ((date(2026, 10, 3), "breakfast"), (date(2026, 10, 3), "lunch"), (date(2026, 10, 20), "dinner")):
+            self.client.post("/api/nutrition/entries/", self._demo_entry_payload(day, meal_type=meal), format="json")
+        self.client.post("/api/nutrition/entries/", self._demo_entry_payload(date(2026, 11, 1)), format="json")
+
+        response = self.client.get("/api/nutrition/entries/calendar/?month=2026-10")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["days"],
+            [{"date": "2026-10-03", "calories": 356, "entries": 2}, {"date": "2026-10-20", "calories": 178, "entries": 1}],
+        )
+        self.assertEqual(self.client.get("/api/nutrition/entries/calendar/?month=oct").status_code, 400)
+
+    def test_custom_foods_can_be_found_by_barcode(self):
+        self.client.post(
+            "/api/nutrition/custom-foods/",
+            {"name": "Oat bar", "barcode": "5901234123457", "base_amount": 100, "base_unit": "g", "calories": 410},
+            format="json",
+        )
+        self.client.post("/api/nutrition/custom-foods/", {"name": "Homemade soup"}, format="json")
+        found = self.client.get("/api/nutrition/custom-foods/?barcode=5901234123457").data
+        self.assertEqual([f["name"] for f in found], ["Oat bar"])
+        self.assertEqual(len(self.client.get("/api/nutrition/custom-foods/").data), 2)
 
     def test_saved_meal_can_be_created_from_diary_and_logged(self):
         today = timezone.localdate()

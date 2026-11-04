@@ -56,7 +56,7 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
   };
 
   return (
-    <div className="flex min-h-screen w-full bg-background">
+    <div className="flex min-h-screen w-full bg-transparent">
       {/* Mobile menu button */}
       <Button
         variant="ghost"
@@ -70,7 +70,7 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 w-64 transform bg-card border-r border-border transition-transform duration-300 lg:relative lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-40 w-64 transform border-r border-primary/30 bg-card/80 backdrop-blur-xl shadow-[4px_0_24px_hsl(var(--primary)/0.08)] transition-transform duration-300 lg:relative lg:translate-x-0",
           sidebarOpen ? "translate-x-0" : "-translate-x-full",
           sidebarCollapsed ? "lg:w-16" : "lg:w-64",
         )}
@@ -116,7 +116,7 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
                   "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-all hover:bg-muted hover:text-foreground",
                   sidebarCollapsed && "justify-center gap-0 px-2",
                 )}
-                activeClassName="bg-muted text-foreground"
+                activeClassName="bg-primary/10 text-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.45),0_0_16px_hsl(var(--primary)/0.25)] [&_svg]:drop-shadow-[0_0_6px_hsl(var(--primary))]"
                 onClick={() => setSidebarOpen(false)}
               >
                 <item.icon size={18} />
