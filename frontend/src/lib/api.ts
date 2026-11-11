@@ -1,6 +1,7 @@
 // frontend/src/lib/api.ts
 
-import { getAccessToken } from "./auth";
+import { logout } from "./auth";
+import { createAuthFetch } from "./auth-fetch";
 
 // Base URL of your Django API, e.g. https://api.example.com/api in production.
 // Set VITE_API_URL at build time; local development falls back to localhost.
@@ -9,10 +10,28 @@ export const API_BASE_URL: string = (import.meta.env.VITE_API_URL || "http://loc
 // The backend's origin without /api, for non-API routes (accounts, OAuth, blog).
 export const BACKEND_ORIGIN = API_BASE_URL.replace(/\/api$/, "");
 
+let sessionEnded = false;
+
+/**
+ * fetch() for logged-in requests: adds the access token, renews it with the
+ * refresh token when it has expired, and sends the user to the login page
+ * when the session is over (refresh token expired too).
+ */
+export const authFetch = createAuthFetch({
+  refreshUrl: `${API_BASE_URL}/refresh/`,
+  onSessionEnded: () => {
+    if (sessionEnded) return;
+    sessionEnded = true;
+    logout();
+    if (!window.location.pathname.startsWith("/login")) {
+      window.location.assign("/login");
+    }
+  },
+});
+
 /**
  * Small helper for GET requests to your backend.
- * - It reads the JWT access token from localStorage
- * - It sends it in the Authorization header
+ * - It sends the login token (see authFetch above)
  * - It throws an error if the response is not ok (status 200–299)
  *
  * <T> is a generic type parameter:
@@ -20,23 +39,17 @@ export const BACKEND_ORIGIN = API_BASE_URL.replace(/\/api$/, "");
  *   For example apiGet<Track[]>("/ntr/tracks/") means "I expect an array of Track".
  */
 export async function apiGet<T>(path: string): Promise<T> {
-  // Read the JWT token stored after login
-  const accessToken = localStorage.getItem("access_token");
-
   // Do the HTTP GET request
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  const res = await authFetch(`${API_BASE_URL}${path}`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
-      // Only add the Authorization header if we have a token
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
   });
 
   // If the response is not in the "ok" range (200–299),
   // we throw an error so we can catch it in our pages.
   if (!res.ok) {
-    // You can make this smarter later (check 401, 403, etc)
     throw new Error(`API error ${res.status}`);
   }
 
@@ -56,14 +69,10 @@ export async function apiPost<TBody, TResponse>(
 ): Promise<TResponse> {
   const baseUrl = API_BASE_URL;
 
-  // Get the access token from localStorage (we stored this on login)
-  const token = localStorage.getItem("access_token");
-
-  const res = await fetch(`${baseUrl}${path}`, {
+  const res = await authFetch(`${baseUrl}${path}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify(body),
   });
@@ -101,13 +110,8 @@ export async function apiPostForm<TResponse>(
   body: FormData,
 ): Promise<TResponse> {
   const baseUrl = API_BASE_URL;
-  const token = localStorage.getItem("access_token");
-
-  const res = await fetch(`${baseUrl}${path}`, {
+  const res = await authFetch(`${baseUrl}${path}`, {
     method: "POST",
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
     body,
   });
 
@@ -146,15 +150,10 @@ export async function apiPatch<TBody, TResponse>(
   // Build the full URL, e.g. "/ntr/tracks/1/" -> "http://localhost:8000/api/ntr/tracks/1/"
   const url = `${API_BASE_URL}${path}`;
 
-  // Read JWT token from the browser (we saved it on login)
-  const token = getAccessToken();
-
-  const res = await fetch(url, {
+  const res = await authFetch(url, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
-      // If we have a token, send it as Authorization header
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify(body),
   });
@@ -187,13 +186,8 @@ export async function apiPatch<TBody, TResponse>(
 // DELETE helper: used when we want to remove a resource completely
 export async function apiDelete(path: string): Promise<void> {
   const url = `${API_BASE_URL}${path}`;
-  const token = getAccessToken();
-
-  const res = await fetch(url, {
+  const res = await authFetch(url, {
     method: "DELETE",
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
   });
 
   if (!res.ok) {
