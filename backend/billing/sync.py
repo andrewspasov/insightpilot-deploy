@@ -331,6 +331,20 @@ def sync_subscription_from_stripe(stripe_subscription, source: str = "stripe") -
     return subscription
 
 
+def invoice_subscription_id(stripe_invoice) -> str:
+    data = stripe_invoice.to_dict() if hasattr(stripe_invoice, "to_dict") else stripe_invoice
+    if not isinstance(data, dict):
+        return ""
+    ref = data.get("subscription")
+    if not ref:
+        # API 2025-03-31.basil+ moved it to parent.subscription_details.subscription
+        details = (data.get("parent") or {}).get("subscription_details") or {}
+        ref = details.get("subscription")
+    if isinstance(ref, dict):
+        ref = ref.get("id")
+    return ref or ""
+
+
 def sync_order_from_stripe_invoice(
     stripe_invoice,
     source: str = "stripe",
@@ -344,7 +358,7 @@ def sync_order_from_stripe_invoice(
     if not stripe_invoice_id:
         return None
 
-    stripe_subscription_id = data.get("subscription")
+    stripe_subscription_id = invoice_subscription_id(data)
     stripe_customer_id = data.get("customer")
 
     subscription = None

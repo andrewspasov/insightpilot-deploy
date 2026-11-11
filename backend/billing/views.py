@@ -576,24 +576,13 @@ class StripeWebhookView(APIView):
                         fallback_subscription=subscription,
                     )
 
-            if event.type in {"invoice.payment_succeeded", "invoice.payment_failed"}:
-                invoice = event.data.get("object", {})
-                stripe_subscription_id = invoice.get("subscription")
-                if stripe_subscription_id:
-                    stripe_subscription = stripe_service.retrieve_subscription(stripe_subscription_id)
-                    subscription = sync.sync_subscription_from_stripe(stripe_subscription, source="stripe")
-                order = sync.sync_order_from_stripe_invoice(
-                    invoice,
-                    source="stripe",
-                    fallback_subscription=subscription,
-                )
-
-            if event.type.startswith("invoice.") and event.type not in {
-                "invoice.payment_succeeded",
-                "invoice.payment_failed",
-            }:
+            if event.type.startswith("invoice."):
                 invoice = event.data.get("object", {})
                 if isinstance(invoice, dict) and invoice.get("object") == "invoice":
+                    stripe_subscription_id = sync.invoice_subscription_id(invoice)
+                    if stripe_subscription_id:
+                        stripe_subscription = stripe_service.retrieve_subscription(stripe_subscription_id)
+                        subscription = sync.sync_subscription_from_stripe(stripe_subscription, source="stripe")
                     order = sync.sync_order_from_stripe_invoice(
                         invoice,
                         source="stripe",

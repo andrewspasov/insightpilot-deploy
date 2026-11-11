@@ -1,11 +1,13 @@
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import stripe
 from django.contrib.auth import get_user_model
+from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from billing.models import AccessPass, Customer, Subscription
+from billing.models import AccessPass, Customer, Order, Subscription
 
 
 class CreateSubscriptionViewTests(APITestCase):
@@ -105,3 +107,65 @@ class PriceToPassMappingTests(APITestCase):
         self.assertEqual(_map_price_to_pass(["price_new"]), (bronze, "price_new"))
         self.assertEqual(_map_price_to_pass(["price_old"]), (bronze, "price_old"))
         self.assertEqual(_map_price_to_pass(["price_unknown"]), (None, "price_unknown"))
+
+
+@override_settings(STRIPE_WEBHOOK_SECRET="whsec_test")
+class StripeWebhookInvoiceTests(APITestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(
+            username="webhook-user",
+            email="webhook-user@example.com",
+            password="password123",
+        )
+        self.customer = Customer.objects.create(user=self.user, stripe_customer_id="cus_hook_123")
+        self.subscription = Subscription.objects.create(
+            user=self.user,
+            customer=self.customer,
+            stripe_subscription_id="sub_hook_123",
+            status=Subscription.STATUS_PENDING,
+        )
+
+    @patch("billing.views.stripe_service.retrieve_subscription")
+    @patch("billing.views.stripe.Webhook.construct_event")
+    def test_invoice_paid_with_basil_payload_activates_subscription(self, mock_construct, mock_retrieve):
+        # Snapshot payloads from API 2025-03-31.basil+ have no top-level invoice.subscription
+        mock_construct.return_value = stripe.Event.construct_from(
+            {
+                "id": "evt_hook_123",
+                "object": "event",
+                "type": "invoice.paid",
+                "data": {
+                    "object": {
+                        "id": "in_hook_123",
+                        "object": "invoice",
+                        "customer": "cus_hook_123",
+                        "status": "paid",
+                        "parent": {
+                            "type": "subscription_details",
+                            "subscription_details": {"subscription": "sub_hook_123"},
+                        },
+                    }
+                },
+            },
+            "sk_test",
+        )
+        mock_retrieve.return_value = {
+            "id": "sub_hook_123",
+            "customer": "cus_hook_123",
+            "status": "active",
+            "items": {"data": []},
+        }
+
+        response = self.client.post(
+            "/api/billing/stripe/webhook/",
+            data="{}",
+            content_type="application/json",
+            HTTP_STRIPE_SIGNATURE="t=1,v1=test",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mock_retrieve.assert_called_once_with("sub_hook_123")
+        self.subscription.refresh_from_db()
+        self.assertEqual(self.subscription.status, Subscription.STATUS_ACTIVE)
+        self.assertEqual(Order.objects.get(stripe_invoice_id="in_hook_123").subscription, self.subscription)
