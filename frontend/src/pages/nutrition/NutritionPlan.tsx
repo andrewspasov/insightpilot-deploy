@@ -55,6 +55,7 @@ import type {
   UnitsPreference,
   WorkoutSession,
 } from "@/types/plans";
+import { confirmDialog, promptDialog } from "@/lib/dialogs";
 
 type PickerTarget = { mode: "swap"; slot: PlanExercise } | { mode: "add"; day: PlanWorkoutDay };
 
@@ -278,9 +279,12 @@ export default function NutritionPlan() {
               </CardHeader>
               <CardContent>
                 <Button
-                  onClick={() =>
-                    window.confirm("Switch to a maintain plan? Your current plan moves to history.") &&
-                    guard(() => switchToMaintain.mutateAsync(plan.id), "Could not switch")
+                  onClick={async () =>
+                    (await confirmDialog({
+                      title: "Switch to a maintain plan?",
+                      description: "Your current plan moves to history.",
+                      confirmLabel: "Switch to maintain",
+                    })) && guard(() => switchToMaintain.mutateAsync(plan.id), "Could not switch")
                   }
                 >
                   Switch to maintain
@@ -387,9 +391,13 @@ export default function NutritionPlan() {
                       variant={o.pace === plan.pace ? "default" : "outline"}
                       className="h-auto flex-col whitespace-normal px-2 py-2"
                       disabled={setPace.isPending}
-                      onClick={() =>
+                      onClick={async () =>
                         o.pace !== plan.pace &&
-                        window.confirm(`Switch to ${PACE_LABELS[o.pace]} pace? Your daily target becomes ${o.daily_calorie_target} kcal.`) &&
+                        (await confirmDialog({
+                          title: `Switch to ${PACE_LABELS[o.pace]} pace?`,
+                          description: `Your daily target becomes ${o.daily_calorie_target} kcal.`,
+                          confirmLabel: "Switch pace",
+                        })) &&
                         guard(() => setPace.mutateAsync({ planId: plan.id, pace: o.pace as PlanPace }), "Could not change pace")
                       }
                     >
@@ -472,9 +480,16 @@ export default function NutritionPlan() {
                           variant="ghost"
                           size="sm"
                           disabled={suggestingDay !== null}
-                          onClick={() => {
+                          onClick={async () => {
                             const hasStrength = day.exercises.some((e) => e.kind === "strength");
-                            if (!hasStrength || window.confirm(`Replace the exercises on ${day.title}? Cardio stays.`)) {
+                            if (
+                              !hasStrength ||
+                              (await confirmDialog({
+                                title: `Replace the exercises on ${day.title}?`,
+                                description: "Cardio stays.",
+                                confirmLabel: "Replace",
+                              }))
+                            ) {
                               runSuggest(day.id, true);
                             }
                           }}
@@ -484,12 +499,14 @@ export default function NutritionPlan() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => {
-                            const title = window.prompt(
-                              'Name the muscles this day trains, e.g. "Chest, triceps & side delts":',
-                              day.title,
-                            );
-                            if (title?.trim()) guard(() => updateDay.mutateAsync({ id: day.id, title: title.trim() }), "Could not rename");
+                          onClick={async () => {
+                            const title = await promptDialog({
+                              title: "Rename this day",
+                              description: 'Name the muscles this day trains, e.g. "Chest, triceps & side delts".',
+                              defaultValue: day.title,
+                              confirmLabel: "Rename",
+                            });
+                            if (title) guard(() => updateDay.mutateAsync({ id: day.id, title }), "Could not rename");
                           }}
                         >
                           <Pencil className="mr-1 h-4 w-4" /> Rename
@@ -498,9 +515,13 @@ export default function NutritionPlan() {
                           variant="ghost"
                           size="sm"
                           className="text-destructive"
-                          onClick={() =>
-                            window.confirm(`Make ${name} a rest day? This removes ${day.title} and its exercises.`) &&
-                            guard(() => deleteDay.mutateAsync(day.id), "Could not remove day")
+                          onClick={async () =>
+                            (await confirmDialog({
+                              title: `Make ${name} a rest day?`,
+                              description: `This removes ${day.title} and its exercises.`,
+                              confirmLabel: "Make rest day",
+                              destructive: true,
+                            })) && guard(() => deleteDay.mutateAsync(day.id), "Could not remove day")
                           }
                         >
                           Rest day
@@ -611,8 +632,12 @@ export default function NutritionPlan() {
           <div className="flex flex-col gap-2">
             <Button
               variant="outline"
-              onClick={() =>
-                window.confirm("Start a new plan? Your current plan moves to history.") && navigate("/tools/nutrition/plan/new")
+              onClick={async () =>
+                (await confirmDialog({
+                  title: "Start a new plan?",
+                  description: "Your current plan moves to history.",
+                  confirmLabel: "Start new plan",
+                })) && navigate("/tools/nutrition/plan/new")
               }
             >
               Start a new plan
@@ -620,9 +645,13 @@ export default function NutritionPlan() {
             <Button
               variant="ghost"
               className="text-destructive"
-              onClick={() =>
-                window.confirm("End this plan? It moves to your history; your current targets stay until you change them.") &&
-                guard(() => archive.mutateAsync(plan.id), "Could not end plan")
+              onClick={async () =>
+                (await confirmDialog({
+                  title: "End this plan?",
+                  description: "It moves to your history; your current targets stay until you change them.",
+                  confirmLabel: "End plan",
+                  destructive: true,
+                })) && guard(() => archive.mutateAsync(plan.id), "Could not end plan")
               }
             >
               End this plan

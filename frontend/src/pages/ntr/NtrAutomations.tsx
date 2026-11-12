@@ -15,6 +15,7 @@ import { NtrPlatform, NtrTrack } from "@/types/ntr";
 import { mockTracks } from "@/lib/ntrMockData";
 import { useToast } from "@/hooks/use-toast";
 import { useToolAccess } from "@/hooks/use-entitlements";
+import { alertDialog, confirmDialog } from "@/lib/dialogs";
 
 // Shape of a TrendSnapshot as returned by the backend
 type SnapshotApi = {
@@ -456,9 +457,12 @@ export default function NtrAutomations() {
       });
       return;
     }
-    const confirmDelete = window.confirm(
-      "Are you sure you want to delete this trend track? This cannot be undone.",
-    );
+    const confirmDelete = await confirmDialog({
+      title: "Delete this trend track?",
+      description: "This cannot be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
 
     if (!confirmDelete) return;
 
@@ -475,7 +479,7 @@ export default function NtrAutomations() {
       }
     } catch (err: unknown) {
       console.error("Error deleting NTR track", err);
-      alert(getErrorMessage(err));
+      void alertDialog({ title: "Something went wrong", description: getErrorMessage(err) });
     }
   };
 
@@ -512,7 +516,7 @@ export default function NtrAutomations() {
       );
     } catch (err: unknown) {
       console.error("Error toggling NTR track status", err);
-      alert(getErrorMessage(err));
+      void alertDialog({ title: "Something went wrong", description: getErrorMessage(err) });
     }
   };
 
@@ -615,7 +619,7 @@ export default function NtrAutomations() {
       }
     } catch (err: unknown) {
       console.error("Error running mock automation", err);
-      alert(getErrorMessage(err));
+      void alertDialog({ title: "Something went wrong", description: getErrorMessage(err) });
     } finally {
       // Clear the running flag so the button is enabled again
       setRunningTrackId(null);

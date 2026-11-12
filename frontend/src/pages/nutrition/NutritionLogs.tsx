@@ -31,6 +31,7 @@ import {
   percentOfTarget,
 } from "@/lib/nutrition";
 import type { NutritionEntry, NutritionMealType } from "@/types/nutrition";
+import { promptDialog } from "@/lib/dialogs";
 
 function MacroProgressRow({
   label,
@@ -314,7 +315,13 @@ export default function NutritionLogs() {
   };
 
   const handleSaveMeal = async (mealType: NutritionMealType, fallbackName: string) => {
-    const name = window.prompt("Saved meal name", fallbackName)?.trim();
+    const name = await promptDialog({
+      title: "Save this meal",
+      description: "Give it a name so you can add it again from Add food.",
+      inputLabel: "Saved meal name",
+      defaultValue: fallbackName,
+      confirmLabel: "Save meal",
+    });
     if (!name) {
       return;
     }

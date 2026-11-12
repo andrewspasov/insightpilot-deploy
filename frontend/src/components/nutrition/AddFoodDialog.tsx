@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { confirmDialog } from "@/lib/dialogs";
 
 const MEAL_LABELS: Record<NutritionMealType, string> = {
   breakfast: "Breakfast",
@@ -350,7 +351,7 @@ export function AddFoodDialog({
   };
 
   const handleDeleteRecipe = async (recipe: NutritionRecipe) => {
-    if (!window.confirm(`Delete "${recipe.name}"?`)) return;
+    if (!(await confirmDialog({ title: `Delete "${recipe.name}"?`, description: "This recipe will be removed for good.", confirmLabel: "Delete", destructive: true }))) return;
     try {
       await deleteRecipe.mutateAsync(recipe.id);
     } catch (error) {

@@ -47,6 +47,7 @@ import NutritionReports from "./pages/nutrition/NutritionReports";
 
 // Auth guard
 import RequireAuth from "./components/RequireAuth";
+import DialogHost from "./components/DialogHost";
 
 const queryClient = new QueryClient();
 const NutritionAI = lazy(() => import("./pages/nutrition/NutritionAI"));
@@ -89,6 +90,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <DialogHost />
       <NeonBackdrop />
       <BrowserRouter>
         <GlobalThemeToggle />

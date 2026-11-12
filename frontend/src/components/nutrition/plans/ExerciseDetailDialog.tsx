@@ -7,6 +7,7 @@ import { setsLabel, titleCase } from "@/lib/plan-format";
 import type { PlanExercise } from "@/types/plans";
 
 import { ExerciseImage } from "./ExerciseImage";
+import { confirmDialog } from "@/lib/dialogs";
 
 type Props = {
   planExercise: PlanExercise | null;
@@ -92,8 +93,8 @@ export function ExerciseDetailDialog({ planExercise, onOpenChange, readOnly, bus
                 <Button
                   variant="outline"
                   disabled={busy}
-                  onClick={() => {
-                    if (window.confirm(`Remove "${ex.name}" from this day?`)) onRemove?.();
+                  onClick={async () => {
+                    if (await confirmDialog({ title: `Remove "${ex.name}" from this day?`, confirmLabel: "Remove", destructive: true })) onRemove?.();
                   }}
                 >
                   <Trash2 className="mr-2 h-4 w-4" /> Remove

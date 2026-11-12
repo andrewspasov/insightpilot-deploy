@@ -45,6 +45,7 @@ import type {
   TrainingActivity,
   TrainingSession,
 } from "@/types/plans";
+import { confirmDialog } from "@/lib/dialogs";
 
 type DraftExercise = {
   exercise_id: number;
@@ -278,7 +279,7 @@ export default function NutritionPlanBuilder() {
       return;
     }
     const filled = Object.values(days).some((d) => d.exercises.length);
-    if (filled && !window.confirm("Replace the exercises you've already set up?")) return;
+    if (filled && !(await confirmDialog({ title: "Replace the exercises you've already set up?", confirmLabel: "Replace" }))) return;
     setSuggesting(true);
     try {
       const result = await suggestProgram({
@@ -316,7 +317,7 @@ export default function NutritionPlanBuilder() {
       return;
     }
     const filled = targets.filter((wd) => days[wd].exercises.length).map((wd) => WEEKDAYS[wd]);
-    if (filled.length && !window.confirm(`Replace the exercises on ${filled.join(", ")}?`)) return;
+    if (filled.length && !(await confirmDialog({ title: `Replace the exercises on ${filled.join(", ")}?`, confirmLabel: "Replace" }))) return;
     setSuggesting(true);
     try {
       const result = await suggestProgram({

@@ -41,6 +41,7 @@ import type {
   WorkoutSession,
   WorkoutSet,
 } from "@/types/plans";
+import { confirmDialog } from "@/lib/dialogs";
 
 type SetRow = { weight: string; reps: string; minutes: string; distance: string; done: boolean };
 type ExerciseBlock = { slot: PlanExercise; rows: SetRow[]; last: LastPerformance | null };
@@ -265,7 +266,15 @@ export default function NutritionWorkout() {
       return;
     }
     const unfinished = toPayload(false).length - done.length;
-    if (unfinished && !window.confirm(`${unfinished} set(s) aren't ticked off and won't be saved. Finish anyway?`)) return;
+    if (
+      unfinished &&
+      !(await confirmDialog({
+        title: "Finish anyway?",
+        description: `${unfinished} set(s) aren't ticked off and won't be saved.`,
+        confirmLabel: "Finish workout",
+      }))
+    )
+      return;
     setFinishing(true);
     try {
       if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -286,7 +295,16 @@ export default function NutritionWorkout() {
   };
 
   const discard = async () => {
-    if (!session || !window.confirm("Discard this workout? Everything logged in it will be deleted.")) return;
+    if (
+      !session ||
+      !(await confirmDialog({
+        title: "Discard this workout?",
+        description: "Everything logged in it will be deleted.",
+        confirmLabel: "Discard",
+        destructive: true,
+      }))
+    )
+      return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     await deleteWorkout(session.id).catch(() => {});
     await queryClient.invalidateQueries({ queryKey: ["nutrition"] });
