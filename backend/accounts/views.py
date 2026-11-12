@@ -13,7 +13,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from urllib.parse import urlencode
+import logging
+
 import requests
+
+logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
@@ -166,14 +170,21 @@ class PasswordResetRequestView(APIView):
             """
 
 
-            send_mail(
-                subject,
-                message,
-                settings.DEFAULT_FROM_EMAIL,
-                [user.email],
-                fail_silently=False,
-                html_message=html_message,
-            )
+            try:
+                send_mail(
+                    subject,
+                    message,
+                    settings.DEFAULT_FROM_EMAIL,
+                    [user.email],
+                    fail_silently=False,
+                    html_message=html_message,
+                )
+            except Exception:
+                logger.exception("Password reset email could not be sent")
+                return Response(
+                    {"error": "We couldn't send the email right now. Please try again in a few minutes."},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
 
         return Response(
             {"message": "If an account exists for that email, a reset link has been sent."},
