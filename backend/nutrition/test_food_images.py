@@ -246,3 +246,20 @@ class UnsplashGuidelineTests(PlanTestBase):
         self.assertEqual(entries["Banana"]["image_attribution"]["provider"], "Unsplash")
         self.assertIn("utm_medium=referral", entries["Banana"]["image_attribution"]["photographer_url"])
         self.assertIsNone(entries["Scanned bar"]["image_attribution"])
+
+
+@override_settings(UNSPLASH_ACCESS_KEY="test-unsplash-key", PEXELS_API_KEY="")
+class FallbackSearchTests(SimpleTestCase):
+    def test_possessive_leftovers_are_dropped(self):
+        self.assertEqual(food_images.normalize("Domino’s Pepperoni Pizza"), "domino pepperoni pizza")
+
+    @patch("nutrition.food_images._search_unsplash")
+    def test_brand_names_fall_back_to_the_dish(self, mock_search):
+        mock_search.side_effect = lambda q: UNSPLASH_PHOTO if q == "pepperoni pizza" else {}
+        self.assertEqual(food_images._search("domino pepperoni pizza"), UNSPLASH_PHOTO)
+        self.assertEqual([c.args[0] for c in mock_search.call_args_list], ["domino pepperoni pizza", "pepperoni pizza"])
+
+    @patch("nutrition.food_images._search_unsplash", return_value={})
+    def test_gives_up_after_the_last_word(self, mock_search):
+        self.assertEqual(food_images._search("mystery stew"), {})
+        self.assertEqual([c.args[0] for c in mock_search.call_args_list], ["mystery stew", "stew"])

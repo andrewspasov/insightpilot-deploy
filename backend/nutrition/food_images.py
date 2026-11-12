@@ -42,7 +42,8 @@ def normalize(name: str) -> str:
     """'Black beans (cooked)' -> 'black beans'; 'Milk (2%)' -> 'milk'."""
     text = re.sub(r"\([^)]*\)", " ", (name or "").lower())
     text = re.sub(r"[^a-z\s-]", " ", text)
-    words = [w for w in re.split(r"[\s-]+", text) if w and w not in NOISE_WORDS]
+    # Single letters are leftovers like the "s" in "Domino's".
+    words = [w for w in re.split(r"[\s-]+", text) if len(w) > 1 and w not in NOISE_WORDS]
     return " ".join(words[:5])
 
 
@@ -95,10 +96,28 @@ def _track_download(download_location: str) -> None:
         logger.warning("Unsplash download tracking failed: %s", exc)
 
 
+def _fallback_queries(query: str) -> list[str]:
+    """'dominos pepperoni pizza' -> that, then 'pepperoni pizza', then 'pizza'.
+
+    Brand and restaurant names often find no photos at all, while the last words
+    usually name the dish.
+    """
+    words = query.split()
+    candidates = [query, " ".join(words[-2:]), words[-1] if words else ""]
+    seen: list[str] = []
+    for candidate in candidates:
+        if candidate and candidate not in seen:
+            seen.append(candidate)
+    return seen
+
+
 def _search(query: str) -> dict:
-    if _provider() == "unsplash":
-        return _search_unsplash(query)
-    return _search_pexels(query)
+    search = _search_unsplash if _provider() == "unsplash" else _search_pexels
+    for candidate in _fallback_queries(query):
+        found = search(candidate)
+        if found:
+            return found
+    return {}
 
 
 def _search_unsplash(query: str) -> dict:
