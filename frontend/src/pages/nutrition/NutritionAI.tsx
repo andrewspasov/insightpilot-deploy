@@ -69,6 +69,10 @@ const agentOptions: Record<
   },
 };
 
+// Agents shown in the picker. InsightPilot Agent (a free local Ollama model) is
+// hidden until it's built; with one agent the picker isn't shown at all.
+const visibleAgents: NutritionAgent[] = ["chatgpt"];
+
 function buildStarterMessages(agent: NutritionAgent): InsightAIMessage[] {
   return [
     {
@@ -293,10 +297,7 @@ export function ChatBubble({
 
 export default function NutritionAI() {
   const coach = useCoachChat();
-  // Reopen on the ChatGPT agent when there is a saved conversation.
-  const [selectedAgent, setSelectedAgent] = useState<NutritionAgent>(
-    coach.messages.length > 0 ? "chatgpt" : "insightpilot",
-  );
+  const [selectedAgent, setSelectedAgent] = useState<NutritionAgent>(visibleAgents[0]);
   const [input, setInput] = useState("");
   const location = useLocation();
   const navigate = useNavigate();
@@ -351,8 +352,9 @@ export default function NutritionAI() {
         </div>
       </div>
 
+      {visibleAgents.length > 1 && (
       <div className="grid gap-3 md:grid-cols-2">
-        {(Object.keys(agentOptions) as NutritionAgent[]).map((agent) => {
+        {visibleAgents.map((agent) => {
           const option = agentOptions[agent];
           const isSelected = selectedAgent === agent;
           return (
@@ -388,6 +390,7 @@ export default function NutritionAI() {
           );
         })}
       </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <Card className="flex min-h-[680px] flex-col overflow-hidden">
