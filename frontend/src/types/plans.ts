@@ -1,5 +1,5 @@
 // Plans, exercise library and workouts. Mirrors mobile/src/api/nutritionTypes.ts.
-import type { NutritionMealType } from "@/types/nutrition";
+import type { NutritionMealType, PhotoAttribution } from "@/types/nutrition";
 
 export type NutritionSex = "male" | "female";
 export type JobActivity = "desk" | "standing" | "physical";
@@ -123,6 +123,7 @@ export type PlanMealOption = {
   fat_grams: number;
   image_url?: string | null;
   image_credit?: string | null;
+  image_attribution?: PhotoAttribution | null;
 };
 
 export type PlanProgress = {

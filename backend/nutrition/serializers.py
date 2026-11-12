@@ -269,9 +269,12 @@ class MealEntrySerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
         # Scanned products bring their own photo; other foods use a stock photo.
+        data["image_attribution"] = None
         if not data.get("image_url"):
             image = _food_image(self, instance.food_name)
             data["image_url"] = image.thumb_url if image else ""
+            # Stock photos carry a linked credit; a scanned product's own photo doesn't.
+            data["image_attribution"] = food_images.attribution(image) if image else None
         return data
 
     def get_available_units(self, obj):
@@ -678,6 +681,7 @@ def _food_image(serializer, name: str):
 class PlanMealOptionSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()
     image_credit = serializers.SerializerMethodField()
+    image_attribution = serializers.SerializerMethodField()
 
     def get_image_url(self, obj):
         image = _food_image(self, obj.name)
@@ -686,6 +690,10 @@ class PlanMealOptionSerializer(serializers.ModelSerializer):
     def get_image_credit(self, obj):
         image = _food_image(self, obj.name)
         return food_images.credit(image) if image else None
+
+    def get_image_attribution(self, obj):
+        image = _food_image(self, obj.name)
+        return food_images.attribution(image) if image else None
 
     class Meta:
         model = PlanMealOption
@@ -702,6 +710,7 @@ class PlanMealOptionSerializer(serializers.ModelSerializer):
             "fat_grams",
             "image_url",
             "image_credit",
+            "image_attribution",
         ]
         read_only_fields = fields
 

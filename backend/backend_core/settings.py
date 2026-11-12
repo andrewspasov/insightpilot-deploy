@@ -290,6 +290,8 @@ USDA_FOODDATA_CENTRAL_API_KEY = os.getenv("USDA_FOODDATA_CENTRAL_API_KEY", "").s
 # Food photos for diary entries and example meals: an Unsplash access key
 # (unsplash.com/oauth/applications) or a Pexels key; Unsplash wins if both are set.
 UNSPLASH_ACCESS_KEY = os.getenv("UNSPLASH_ACCESS_KEY", "").strip()
+# The app name Unsplash sees in referral links (utm_source); match your Unsplash app.
+UNSPLASH_APP_NAME = os.getenv("UNSPLASH_APP_NAME", "insightpilot").strip() or "insightpilot"
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY", "").strip()
 
 # InsightPilot AI (private nutrition AI test)

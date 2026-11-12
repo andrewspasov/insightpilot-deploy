@@ -32,6 +32,7 @@ import {
 } from "@/lib/nutrition";
 import type { NutritionEntry, NutritionMealType } from "@/types/nutrition";
 import { promptDialog } from "@/lib/dialogs";
+import PhotoCredit from "@/components/nutrition/PhotoCredit";
 
 function MacroProgressRow({
   label,
@@ -195,11 +196,20 @@ function SwipeableEntryRow({
         </Button>
       </div>
 
-      <button
-        type="button"
-        className="relative z-10 flex w-full items-start justify-between bg-background px-4 py-3 text-left transition-transform duration-200"
+      {/* A div rather than a <button> so the photo credit's links can sit inside. */}
+      <div
+        role="button"
+        tabIndex={0}
+        className="relative z-10 flex w-full cursor-pointer items-start justify-between bg-background px-4 py-3 text-left transition-transform duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         style={{ transform: isOpen ? "translateX(-10rem)" : "translateX(0)" }}
         onClick={handleRowClick}
+        onKeyDown={(event) => {
+          if (event.target !== event.currentTarget) return;
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            handleRowClick();
+          }
+        }}
       >
         <div className="flex gap-3">
           {entry.image_url ? (
@@ -221,13 +231,14 @@ function SwipeableEntryRow({
               {entry.fat_grams.toFixed(1)}g
               {entry.total_grams ? ` • ${entry.total_grams.toFixed(0)} g total` : ""}
             </p>
+            <PhotoCredit attribution={entry.image_attribution} className="block text-muted-foreground" />
           </div>
         </div>
         <div className="text-right">
           <p className="font-semibold">{entry.calories.toFixed(0)} kcal</p>
           <p className="text-xs text-muted-foreground">{isOpen ? "Actions" : "Swipe"}</p>
         </div>
-      </button>
+      </div>
     </div>
   );
 }

@@ -183,3 +183,66 @@ class RateLimitPauseTests(APITestCase):
             "results": [{"alt_description": "banana", "urls": {"small": "s", "thumb": "t"}, "links": {}}]
         }
         self.assertEqual(food_images.images_for(["Banana"])["Banana"].image_url, "s")
+
+
+UNSPLASH_PHOTO = {
+    "image_url": "https://images.unsplash.com/s",
+    "thumb_url": "https://images.unsplash.com/t",
+    "photographer": "Ana Lee",
+    "source_url": "https://unsplash.com/photos/abc",
+    "photographer_url": "https://unsplash.com/@analee",
+    "download_location": "https://api.unsplash.com/photos/abc/download?ixid=1",
+}
+
+
+@override_settings(UNSPLASH_ACCESS_KEY="test-unsplash-key", PEXELS_API_KEY="", UNSPLASH_APP_NAME="insightpilot")
+class UnsplashGuidelineTests(PlanTestBase):
+    def setUp(self):
+        super().setUp()
+        from django.core.cache import cache
+
+        cache.delete(food_images.PAUSE_CACHE_KEY)
+
+    @patch("nutrition.food_images.requests.get")
+    def test_search_keeps_the_profile_and_download_links(self, mock_get):
+        mock_get.return_value.json.return_value = {
+            "results": [
+                {
+                    "alt_description": "banana",
+                    "urls": {"small": "s", "thumb": "t"},
+                    "user": {"name": "Ana Lee", "links": {"html": "https://unsplash.com/@analee"}},
+                    "links": {"html": "https://unsplash.com/photos/abc", "download_location": UNSPLASH_PHOTO["download_location"]},
+                }
+            ]
+        }
+        found = food_images._search("banana")
+        self.assertEqual(found["photographer_url"], "https://unsplash.com/@analee")
+        self.assertEqual(found["download_location"], UNSPLASH_PHOTO["download_location"])
+
+    @patch("nutrition.food_images._track_download")
+    @patch("nutrition.food_images._search", return_value=UNSPLASH_PHOTO)
+    def test_a_new_photo_is_reported_to_unsplash_once(self, mock_search, mock_track):
+        food_images.images_for(["Banana"])
+        food_images.images_for(["Banana"])
+        mock_track.assert_called_once_with(UNSPLASH_PHOTO["download_location"])
+
+    def test_attribution_links_carry_the_referral_tags(self):
+        credit = food_images.attribution(FoodImage(query="banana", **UNSPLASH_PHOTO))
+        self.assertEqual(credit["photographer"], "Ana Lee")
+        self.assertEqual(credit["photographer_url"], "https://unsplash.com/@analee?utm_source=insightpilot&utm_medium=referral")
+        self.assertEqual(credit["provider"], "Unsplash")
+        self.assertEqual(credit["provider_url"], "https://unsplash.com/?utm_source=insightpilot&utm_medium=referral")
+
+    @patch("nutrition.food_images._track_download")
+    @patch("nutrition.food_images._search", return_value=UNSPLASH_PHOTO)
+    def test_diary_rows_get_a_linked_credit_but_scanned_products_dont(self, mock_search, mock_track):
+        MealEntry.objects.create(owner=self.user, entry_date=self.today, meal_type="lunch", food_name="Banana")
+        MealEntry.objects.create(
+            owner=self.user, entry_date=self.today, meal_type="lunch", food_name="Scanned bar",
+            image_url="https://images.openfoodfacts.org/bar.jpg",
+        )
+        response = self.client.get(f"/api/nutrition/overview/?date={self.today}")
+        entries = {e["food_name"]: e for e in response.data["meal_sections"][1]["entries"]}
+        self.assertEqual(entries["Banana"]["image_attribution"]["provider"], "Unsplash")
+        self.assertIn("utm_medium=referral", entries["Banana"]["image_attribution"]["photographer_url"])
+        self.assertIsNone(entries["Scanned bar"]["image_attribution"])

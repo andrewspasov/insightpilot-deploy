@@ -58,6 +58,43 @@ def credit(image: FoodImage) -> str:
     return f"{image.photographer} / {source}" if image.photographer else source
 
 
+def _with_referral(url: str) -> str:
+    """Unsplash wants every link back to it tagged with the app name."""
+    if not url:
+        return ""
+    joiner = "&" if "?" in url else "?"
+    return f"{url}{joiner}utm_source={settings.UNSPLASH_APP_NAME}&utm_medium=referral"
+
+
+def attribution(image: FoodImage) -> dict:
+    """The linked credit shown next to a photo: 'Photo by <photographer> on <Unsplash>'."""
+    if "unsplash.com" in image.source_url:
+        return {
+            "photographer": image.photographer,
+            "photographer_url": _with_referral(image.photographer_url or image.source_url),
+            "provider": "Unsplash",
+            "provider_url": _with_referral("https://unsplash.com/"),
+        }
+    return {
+        "photographer": image.photographer,
+        "photographer_url": image.photographer_url or image.source_url,
+        "provider": "Pexels",
+        "provider_url": "https://www.pexels.com/",
+    }
+
+
+def _track_download(download_location: str) -> None:
+    """Tell Unsplash a photo was chosen for use (their API guidelines require it)."""
+    try:
+        requests.get(
+            download_location,
+            headers={"Authorization": f"Client-ID {settings.UNSPLASH_ACCESS_KEY}", "Accept-Version": "v1"},
+            timeout=5,
+        ).raise_for_status()
+    except requests.RequestException as exc:
+        logger.warning("Unsplash download tracking failed: %s", exc)
+
+
 def _search(query: str) -> dict:
     if _provider() == "unsplash":
         return _search_unsplash(query)
@@ -82,6 +119,8 @@ def _search_unsplash(query: str) -> dict:
         "thumb_url": urls.get("thumb") or urls.get("small") or "",
         "photographer": ((photo.get("user") or {}).get("name") or "")[:200],
         "source_url": (photo.get("links") or {}).get("html") or "",
+        "photographer_url": (((photo.get("user") or {}).get("links") or {}).get("html") or ""),
+        "download_location": (photo.get("links") or {}).get("download_location") or "",
     }
 
 
@@ -113,6 +152,7 @@ def _search_pexels(query: str) -> dict:
         "thumb_url": src.get("tiny") or src.get("small") or "",
         "photographer": (photo.get("photographer") or "")[:200],
         "source_url": photo.get("url") or "",
+        "photographer_url": photo.get("photographer_url") or "",
     }
 
 
@@ -169,5 +209,10 @@ def images_for(names, fetch: bool = True, max_fetch: int = 12) -> dict[str, Food
             for query, found in zip(missing, results):
                 if found is not None:
                     _store(query, found)
+            # Each newly chosen Unsplash photo is reported once, when it's first stored.
+            downloads = [found["download_location"] for found in results if found and found.get("download_location")]
+            if downloads and settings.UNSPLASH_ACCESS_KEY:
+                with ThreadPoolExecutor(max_workers=4) as pool:
+                    list(pool.map(_track_download, downloads))
             cached = _cached(queries)
     return {name: cached[q] for name, q in by_name.items() if q in cached and cached[q].image_url}

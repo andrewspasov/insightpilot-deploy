@@ -55,6 +55,7 @@ export type NutritionEntry = {
   grams_per_unit: number | null;
   total_grams: number | null;
   image_url: string;
+  image_attribution?: PhotoAttribution | null;
   serving_calories: number;
   serving_protein_grams: number;
   serving_carbs_grams: number;
@@ -392,4 +393,12 @@ export type LabelScanResponse = {
   // false when no nutrition table could be read
   found: boolean;
   notes: string;
+};
+
+/** Linked photo credit for stock food photos (Unsplash or Pexels). */
+export type PhotoAttribution = {
+  photographer: string;
+  photographer_url: string;
+  provider: string;
+  provider_url: string;
 };

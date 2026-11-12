@@ -709,6 +709,10 @@ class FoodImage(models.Model):
     thumb_url = models.URLField(max_length=500, blank=True, default="")
     photographer = models.CharField(max_length=200, blank=True, default="")
     source_url = models.URLField(max_length=500, blank=True, default="")
+    # The photographer's profile page, linked in the photo credit.
+    photographer_url = models.URLField(max_length=500, blank=True, default="")
+    # Unsplash asks apps to call this once when a photo is chosen for use.
+    download_location = models.URLField(max_length=500, blank=True, default="")
     fetched_at = models.DateTimeField(auto_now=True)
 
     def __str__(self) -> str:

@@ -56,6 +56,7 @@ import type {
   WorkoutSession,
 } from "@/types/plans";
 import { confirmDialog, promptDialog } from "@/lib/dialogs";
+import PhotoCredit from "@/components/nutrition/PhotoCredit";
 
 type PickerTarget = { mode: "swap"; slot: PlanExercise } | { mode: "add"; day: PlanWorkoutDay };
 
@@ -570,10 +571,17 @@ export default function NutritionPlan() {
                             loading="lazy"
                             className="h-40 w-full bg-muted object-cover"
                           />
-                          {option.image_credit && (
-                            <span className="absolute bottom-1.5 right-2 rounded bg-black/55 px-1.5 py-0.5 text-[10px] text-white">
-                              Photo: {option.image_credit}
-                            </span>
+                          {option.image_attribution ? (
+                            <PhotoCredit
+                              attribution={option.image_attribution}
+                              className="absolute bottom-1.5 right-2 rounded bg-black/55 px-1.5 py-0.5 text-white"
+                            />
+                          ) : (
+                            option.image_credit && (
+                              <span className="absolute bottom-1.5 right-2 rounded bg-black/55 px-1.5 py-0.5 text-[10px] text-white">
+                                Photo: {option.image_credit}
+                              </span>
+                            )
                           )}
                         </div>
                       )}
