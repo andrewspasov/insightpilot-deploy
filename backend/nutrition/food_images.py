@@ -14,6 +14,7 @@ from datetime import timedelta
 
 import requests
 from django.conf import settings
+from django.core.cache import cache
 from django.db import IntegrityError
 from django.utils import timezone
 
@@ -25,6 +26,10 @@ PEXELS_SEARCH_URL = "https://api.pexels.com/v1/search"
 UNSPLASH_SEARCH_URL = "https://api.unsplash.com/search/photos"
 # A miss is retried after this long (the food may get photos, or the key may change).
 RETRY_MISSES_AFTER = timedelta(days=30)
+# When the photo service says "too many requests" (Unsplash demo keys get 50 an
+# hour), stop asking for this long instead of retrying on every page load.
+PAUSE_AFTER_LIMIT = timedelta(hours=1)
+PAUSE_CACHE_KEY = "food_images:paused"
 # Words that describe preparation or packaging rather than what the food looks like.
 NOISE_WORDS = {
     "cooked", "boiled", "baked", "raw", "drained", "light", "low", "fat", "lowfat", "reduced", "plain",
@@ -115,13 +120,27 @@ def _cached(queries: set[str]) -> dict[str, FoodImage]:
     return {img.query: img for img in FoodImage.objects.filter(query__in=queries)}
 
 
+def _is_paused() -> bool:
+    return bool(cache.get(PAUSE_CACHE_KEY))
+
+
 def _safe_search(query: str) -> dict | None:
-    """The photo for a query, {} when Pexels has none, None when the lookup failed."""
+    """The photo for a query, {} when the service has none, None when the lookup failed."""
+    if _is_paused():
+        return None
     try:
         return _search(query)
     except (requests.RequestException, ValueError) as exc:
-        # Network or quota problems are not cached; the next request tries again.
-        logger.warning("Pexels lookup failed for %r: %s", query, exc)
+        # Network or quota problems are not cached as misses; the food is tried again later.
+        status_code = getattr(getattr(exc, "response", None), "status_code", None)
+        if status_code in (401, 403, 429):
+            # Unsplash answers 403 "Rate Limit Exceeded"; 401 means a bad key.
+            cache.set(PAUSE_CACHE_KEY, True, int(PAUSE_AFTER_LIMIT.total_seconds()))
+            logger.warning(
+                "%s photo lookups paused for an hour (HTTP %s): %s", _provider().title(), status_code, exc
+            )
+        else:
+            logger.warning("%s photo lookup failed for %r: %s", _provider().title(), query, exc)
         return None
 
 
@@ -137,7 +156,7 @@ def images_for(names, fetch: bool = True, max_fetch: int = 12) -> dict[str, Food
     by_name = {name: normalize(name) for name in names if name}
     queries = {q for q in by_name.values() if q}
     cached = _cached(queries)
-    if fetch and _provider():
+    if fetch and _provider() and not _is_paused():
         stale_before = timezone.now() - RETRY_MISSES_AFTER
         missing = [
             q for q in queries

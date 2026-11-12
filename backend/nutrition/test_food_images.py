@@ -138,3 +138,48 @@ class UnsplashTests(SimpleTestCase):
             ]
         }
         self.assertEqual(food_images._search("milk")["image_url"], "milk")
+
+
+@override_settings(UNSPLASH_ACCESS_KEY="test-unsplash-key", PEXELS_API_KEY="")
+class RateLimitPauseTests(APITestCase):
+    def setUp(self):
+        from django.core.cache import cache
+
+        cache.delete(food_images.PAUSE_CACHE_KEY)
+        self.addCleanup(cache.delete, food_images.PAUSE_CACHE_KEY)
+
+    @staticmethod
+    def _rate_limited():
+        import requests
+
+        response = requests.Response()
+        response.status_code = 403
+        return requests.HTTPError("403 Client Error: Rate Limit Exceeded", response=response)
+
+    @patch("nutrition.food_images.requests.get")
+    def test_rate_limit_pauses_lookups_and_is_not_cached_as_a_miss(self, mock_get):
+        mock_get.return_value.raise_for_status.side_effect = self._rate_limited()
+        with self.assertLogs("nutrition.food_images", level="WARNING") as logs:
+            self.assertEqual(food_images.images_for(["French fries"]), {})
+        self.assertIn("paused", logs.output[0])
+        self.assertIn("Unsplash", logs.output[0])
+        self.assertFalse(FoodImage.objects.filter(query="french fries").exists())
+
+        # The next page load doesn't ask Unsplash again while paused.
+        calls = mock_get.call_count
+        food_images.images_for(["French fries", "Banana"])
+        self.assertEqual(mock_get.call_count, calls)
+
+    @patch("nutrition.food_images.requests.get")
+    def test_lookups_resume_after_the_pause(self, mock_get):
+        from django.core.cache import cache
+
+        cache.set(food_images.PAUSE_CACHE_KEY, True, 60)
+        food_images.images_for(["Banana"])
+        mock_get.assert_not_called()
+
+        cache.delete(food_images.PAUSE_CACHE_KEY)
+        mock_get.return_value.json.return_value = {
+            "results": [{"alt_description": "banana", "urls": {"small": "s", "thumb": "t"}, "links": {}}]
+        }
+        self.assertEqual(food_images.images_for(["Banana"])["Banana"].image_url, "s")
