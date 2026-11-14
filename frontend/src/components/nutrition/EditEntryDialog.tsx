@@ -7,6 +7,7 @@ import type { NutritionEntry, NutritionMealType, NutritionUnitOption } from "@/t
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { NeonSelect } from "@/components/ui/neon-select";
 
 const MEAL_OPTIONS: Array<{ value: NutritionMealType; label: string }> = [
   { value: "breakfast", label: "Breakfast" },
@@ -167,28 +168,21 @@ export function EditEntryDialog({ entry, open, onOpenChange }: EditEntryDialogPr
               value={quantity}
               onChange={(event) => setQuantity(event.target.value)}
             />
-            <select
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            <NeonSelect
+              aria-label="Unit"
               value={unitKey}
-              onChange={(event) => setUnitKey(event.target.value)}
-            >
-              {(entry.available_units?.length ? entry.available_units : [buildFallbackUnit(entry)]).map((unit) => (
-                <option key={`${entry.id}-${unit.key}`} value={unit.key}>
-                  {unit.label}
-                </option>
-              ))}
-            </select>
-            <select
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              onValueChange={setUnitKey}
+              options={(entry.available_units?.length ? entry.available_units : [buildFallbackUnit(entry)]).map((unit) => ({
+                value: unit.key,
+                label: unit.label,
+              }))}
+            />
+            <NeonSelect
+              aria-label="Meal"
               value={mealType}
-              onChange={(event) => setMealType(event.target.value as NutritionMealType)}
-            >
-              {MEAL_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              onValueChange={(value) => setMealType(value as NutritionMealType)}
+              options={MEAL_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
+            />
             <Input
               type="date"
               value={entryDate}

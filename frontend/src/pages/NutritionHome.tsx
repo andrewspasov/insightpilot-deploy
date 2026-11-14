@@ -9,6 +9,7 @@ import { NUTRITION_STAGES, moveNutritionStage } from "@/lib/nutrition-experience
 import NutritionSplineRobot from "@/components/nutrition/NutritionSplineRobot";
 import NutritionSpatialWorld from "@/components/nutrition/NutritionSpatialWorld";
 import { calculateNutritionSample, GRAMS_PER_OUNCE, NUTRITION_SAMPLE_FOODS, type NutritionSampleUnit } from "@/lib/nutrition-preview";
+import { NeonSelect } from "@/components/ui/neon-select";
 import "./NutritionHome.css";
 
 const nutritionDestination = { from: { pathname: "/tools/nutrition/logs" } };
@@ -27,18 +28,16 @@ function PortionLab() {
   return (
     <div className="n-lab">
       <label className="n-food-field" htmlFor="scene-food">Sample food
-        <select id="scene-food" value={foodId} onChange={(event) => setFoodId(event.target.value)}>
-          {NUTRITION_SAMPLE_FOODS.map((food) => <option key={food.id} value={food.id}>{food.name}</option>)}
-        </select>
+        <NeonSelect id="scene-food" className="n-neon-select" value={foodId} onValueChange={setFoodId}
+          options={NUTRITION_SAMPLE_FOODS.map((food) => ({ value: food.id, label: food.name }))} />
       </label>
       <div className="n-portion-fields">
         <label htmlFor="scene-amount">Quantity
           <input id="scene-amount" type="number" inputMode="decimal" min="0.01" step="any" value={amount} onChange={(event) => setAmount(event.target.value)} aria-invalid={!sample.valid} aria-describedby="scene-lab-note" />
         </label>
         <label htmlFor="scene-unit">Unit
-          <select id="scene-unit" value={unit} onChange={(event) => changeUnit(event.target.value as NutritionSampleUnit)}>
-            <option value="g">Grams (g)</option><option value="oz">Ounces (oz)</option>
-          </select>
+          <NeonSelect id="scene-unit" className="n-neon-select" value={unit} onValueChange={(value) => changeUnit(value as NutritionSampleUnit)}
+            options={[{ value: "g", label: "Grams (g)" }, { value: "oz", label: "Ounces (oz)" }]} />
         </label>
       </div>
       <div className="n-lab-totals" aria-live="polite" aria-atomic="true">

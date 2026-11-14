@@ -106,10 +106,20 @@ test("login, signup and diary connections preserve the nutrition destination", (
 });
 
 test("the portion stage displays quantity, units and all four live totals", () => {
-  const { html } = renderStage(2);
+  const { html, nodes } = renderStage(2);
   for (const label of ["Sample food", "Quantity", "Unit", "Calories", "Protein", "Carbs", "Fat", "247.5", "46.5", "5.4"]) assert.ok(html.includes(label), label);
-  assert.ok(html.includes("Grams (g)"));
-  assert.ok(html.includes("Ounces (oz)"));
+  // The app-style dropdown only draws its menu when opened, so check its options.
+  const lab = nodes.find((node) => typeof node.type === "function" && node.type.name === "PortionLab");
+  const labNodes = [];
+  const walk = (node) => {
+    if (!React.isValidElement(node)) return;
+    labNodes.push(node);
+    React.Children.forEach(node.props.children, walk);
+  };
+  walk(lab.type(lab.props));
+  const unitSelect = labNodes.find((node) => node.props.id === "scene-unit");
+  assert.equal(JSON.stringify(unitSelect.props.options.map((option) => option.label)), JSON.stringify(["Grams (g)", "Ounces (oz)"]));
+  assert.ok(labNodes.find((node) => node.props.id === "scene-food").props.options.length > 1);
   assert.ok(html.includes("Nothing is logged"));
 });
 

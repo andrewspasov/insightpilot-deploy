@@ -1,6 +1,6 @@
 // frontend/src/components/GlobalLayout.tsx
 
-import { ReactNode, useState } from "react";
+import { CSSProperties, ReactNode, useState } from "react";
 import { NavLink } from "@/components/NavLink";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,7 @@ import {
   X,
   LogOut,
   ChevronLeft,
-  ChevronRight,
+  Home,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { logout } from "@/lib/auth";
@@ -33,11 +33,18 @@ const globalMenuItems = [
   { label: "Notifications", path: "/dashboard/notifications", icon: Bell },
   { label: "Profile", path: "/dashboard/profile", icon: User },
   { label: "Settings", path: "/dashboard/settings", icon: Settings },
+  { label: "Homepage", path: "/", icon: Home },
 ];
 
 export function GlobalLayout({ children }: GlobalLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Bumped on every open/close so the edge light sweep replays.
+  const [beamKey, setBeamKey] = useState(0);
+  const toggleCollapsed = () => {
+    setSidebarCollapsed((prev) => !prev);
+    setBeamKey((key) => key + 1);
+  };
   const navigate = useNavigate();
   const { data } = useEntitlements();
 
@@ -46,7 +53,7 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
     ? hasPassAccess
       ? globalMenuItems
       : globalMenuItems.filter((item) =>
-          ["/dashboard", "/dashboard/billing", "/dashboard/profile"].includes(item.path),
+          ["/dashboard", "/dashboard/billing", "/dashboard/profile", "/"].includes(item.path),
         )
     : globalMenuItems;
 
@@ -70,11 +77,14 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 w-64 transform border-r border-primary/30 bg-card/80 backdrop-blur-xl shadow-[4px_0_24px_hsl(var(--primary)/0.08)] transition-transform duration-300 lg:relative lg:translate-x-0",
+          "sidebar-shell fixed inset-y-0 left-0 z-40 w-64 transform border-r border-primary/30 bg-card/80 backdrop-blur-xl shadow-[4px_0_24px_hsl(var(--primary)/0.08)] lg:relative lg:translate-x-0",
           sidebarOpen ? "translate-x-0" : "-translate-x-full",
           sidebarCollapsed ? "lg:w-16" : "lg:w-64",
         )}
+        data-collapsed={sidebarCollapsed}
+        data-open={sidebarOpen}
       >
+        {beamKey > 0 && <span key={beamKey} className="sidebar-beam hidden lg:block" aria-hidden="true" />}
         <div className="flex h-full flex-col">
           {/* Logo */}
           <div
@@ -89,38 +99,38 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
                   IP
                 </span>
               </div>
-              {!sidebarCollapsed && (
-                <span className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                  InsightPilot
-                </span>
-              )}
+              <span className="sidebar-label text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                InsightPilot
+              </span>
             </div>
             <Button
               variant="ghost"
               size="icon"
-              className="ml-auto hidden lg:inline-flex"
-              onClick={() => setSidebarCollapsed((prev) => !prev)}
+              className="sidebar-toggle ml-auto hidden lg:inline-flex"
+              onClick={toggleCollapsed}
               aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
-              {sidebarCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+              <ChevronLeft className="h-4 w-4" />
             </Button>
           </div>
 
           {/* Navigation */}
           <nav className={cn("flex-1 space-y-1 px-3 py-4", sidebarCollapsed && "px-2")}>
-            {visibleMenuItems.map((item) => (
+            {visibleMenuItems.map((item, index) => (
               <NavLink
                 key={item.path}
                 to={item.path}
+                end={item.path === "/" || item.path === "/dashboard" || item.path === "/tools/nutrition"}
+                style={{ "--i": index } as CSSProperties}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-all hover:bg-muted hover:text-foreground",
+                  "sidebar-item flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-all hover:bg-muted hover:text-foreground",
                   sidebarCollapsed && "justify-center gap-0 px-2",
                 )}
                 activeClassName="bg-primary/10 text-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.45),0_0_16px_hsl(var(--primary)/0.25)] [&_svg]:drop-shadow-[0_0_6px_hsl(var(--primary))]"
                 onClick={() => setSidebarOpen(false)}
               >
-                <item.icon size={18} />
-                {!sidebarCollapsed && item.label}
+                <item.icon size={18} className="shrink-0" />
+                <span className="sidebar-label">{item.label}</span>
               </NavLink>
             ))}
           </nav>
@@ -133,7 +143,7 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
               onClick={handleLogout}
             >
               <LogOut className="h-4 w-4" />
-              {!sidebarCollapsed && <span className="ml-2">Log out</span>}
+              <span className={cn("sidebar-label", !sidebarCollapsed && "ml-2")}>Log out</span>
             </Button>
             <div className={cn("flex items-center justify-center mb-3", sidebarCollapsed && "justify-center")}>
               <ThemeToggle />

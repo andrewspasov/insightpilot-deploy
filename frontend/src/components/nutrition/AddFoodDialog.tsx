@@ -28,6 +28,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { confirmDialog } from "@/lib/dialogs";
+import { NeonSelect } from "@/components/ui/neon-select";
 
 const MEAL_LABELS: Record<NutritionMealType, string> = {
   breakfast: "Breakfast",
@@ -447,19 +448,12 @@ export function AddFoodDialog({
                 setCustomFood((current) => ({ ...current, baseAmount: event.target.value }))
               }
             />
-            <select
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            <NeonSelect
+              aria-label="Base unit"
               value={customFood.baseUnit}
-              onChange={(event) =>
-                setCustomFood((current) => ({ ...current, baseUnit: event.target.value }))
-              }
-            >
-              {CUSTOM_BASE_UNIT_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              onValueChange={(value) => setCustomFood((current) => ({ ...current, baseUnit: value }))}
+              options={CUSTOM_BASE_UNIT_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
+            />
             <Input
               placeholder="Optional display label"
               value={customFood.servingDescription}
@@ -774,19 +768,12 @@ export function AddFoodDialog({
                           updateResultSelection(result.id, { quantity: event.target.value })
                         }
                       />
-                      <select
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      <NeonSelect
+                        aria-label="Unit"
                         value={selection.unitKey}
-                        onChange={(event) =>
-                          updateResultSelection(result.id, { unitKey: event.target.value })
-                        }
-                      >
-                        {result.available_units.map((unit) => (
-                          <option key={`${result.id}-${unit.key}`} value={unit.key}>
-                            {unit.label}
-                          </option>
-                        ))}
-                      </select>
+                        onValueChange={(value) => updateResultSelection(result.id, { unitKey: value })}
+                        options={result.available_units.map((unit) => ({ value: unit.key, label: unit.label }))}
+                      />
                       <Button
                         onClick={() => handleAddFood(result)}
                         disabled={createEntry.isPending}

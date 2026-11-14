@@ -10,6 +10,7 @@ import {
 } from "@/lib/cookie-consent";
 import { isAuthenticated, setAuthTokens } from "@/lib/auth";
 import { BACKEND_ORIGIN } from "@/lib/api";
+import { AuthBackdrop } from "@/components/auth/AuthBackdrop";
 
 export default function Signup() {
   const [username, setUsername] = useState("");
@@ -90,14 +91,12 @@ export default function Signup() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-background">
-      <div className="absolute inset-0 -z-10 bg-gradient-hero animate-gradient opacity-60" />
-      <div className="absolute -right-24 top-16 h-64 w-64 rounded-full bg-primary/25 blur-[140px]" />
-      <div className="absolute bottom-10 left-0 h-72 w-72 rounded-full bg-accent/30 blur-[160px]" />
+    <div className="relative isolate min-h-screen overflow-hidden bg-background">
+      <AuthBackdrop />
 
       <div className="mx-auto flex min-h-screen max-w-6xl items-center px-6">
         <div className="grid w-full gap-10 md:grid-cols-[0.95fr_1.05fr] md:items-center">
-          <div className="order-2 space-y-6 rounded-3xl border border-white/10 bg-card/80 p-8 shadow-2xl backdrop-blur md:order-1">
+          <div className="order-2 space-y-6 rounded-3xl neon-edge auth-rise p-8 shadow-2xl backdrop-blur md:order-1">
             <div className="flex items-center justify-between">
               <div>
                 <p className="inline-flex items-center gap-2 rounded-full bg-foreground/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide">
@@ -106,7 +105,7 @@ export default function Signup() {
                 </p>
                 <h1 className="mt-3 text-3xl font-semibold">Create your account</h1>
                 <p className="text-sm text-muted-foreground">
-                  Spin up your workspace and launch your first flow.
+                  Set up your account and start tracking today.
                 </p>
               </div>
               <span className="rounded-full bg-foreground/10 px-3 py-1 text-xs font-semibold text-foreground/70">
@@ -193,35 +192,35 @@ export default function Signup() {
             </form>
           </div>
 
-          <div className="order-1 space-y-6 text-left text-foreground md:order-2">
+          <div className="order-1 auth-rise-delay space-y-6 text-left text-foreground md:order-2">
             <p className="inline-flex items-center gap-2 rounded-full bg-foreground/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide">
-              Guided launches
+              Nutrition & fitness
               <span className="h-2 w-2 rounded-full bg-accent shadow-[0_0_12px_rgba(94,234,212,0.7)]" />
             </p>
             <h2 className="text-4xl font-bold leading-tight md:text-5xl">
-              Design automations with clarity
+              Eat better, train smarter
             </h2>
             <p className="max-w-xl text-lg text-muted-foreground">
-              The same polished feel from the homepage follows you into your workspace. Build
-              flows, invite teammates, and watch metrics update in real time.
+              Log meals in seconds, follow a plan built around your goal, and let the AI coach
+              keep you on track.
             </p>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-glow backdrop-blur transition duration-500 ease-out hover:scale-105 hover:border-white/20 hover:shadow-[0_20px_60px_-10px_rgba(86,173,255,0.45)]">
                 <p className="text-xs font-semibold uppercase tracking-wide text-foreground/70">
-                  Onboarding
+                  Tracking
                 </p>
-                <p className="mt-2 text-lg font-semibold">Fast setup</p>
+                <p className="mt-2 text-lg font-semibold">Log in seconds</p>
                 <p className="text-sm text-muted-foreground">
-                  Guided flows help you ship an automation in minutes.
+                  Search, snap a meal photo or scan a nutrition label.
                 </p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-glow backdrop-blur transition duration-500 ease-out hover:scale-105 hover:border-white/20 hover:shadow-[0_20px_60px_-10px_rgba(86,173,255,0.45)]">
                 <p className="text-xs font-semibold uppercase tracking-wide text-foreground/70">
-                  Visibility
+                  Coaching
                 </p>
-                <p className="mt-2 text-lg font-semibold">Live metrics</p>
+                <p className="mt-2 text-lg font-semibold">Your own plan</p>
                 <p className="text-sm text-muted-foreground">
-                  See success and errors in one elegant console.
+                  Calories, macros and example meals that fit your goal.
                 </p>
               </div>
             </div>

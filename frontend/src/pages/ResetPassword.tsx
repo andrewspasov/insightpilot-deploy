@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { BACKEND_ORIGIN } from "@/lib/api";
+import { AuthBackdrop } from "@/components/auth/AuthBackdrop";
 
 export default function ResetPassword() {
   const { uid, token } = useParams();
@@ -38,21 +39,19 @@ export default function ResetPassword() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-background">
-      <div className="absolute inset-0 -z-10 bg-gradient-hero animate-gradient opacity-60" />
-      <div className="absolute -left-24 top-16 h-64 w-64 rounded-full bg-accent/30 blur-[140px]" />
-      <div className="absolute right-0 bottom-10 h-72 w-72 rounded-full bg-primary/25 blur-[160px]" />
+    <div className="relative isolate min-h-screen overflow-hidden bg-background">
+      <AuthBackdrop />
 
       <div className="mx-auto flex min-h-screen max-w-6xl items-center px-6">
         <div className="grid w-full gap-10 md:grid-cols-[1.05fr_0.95fr] md:items-center">
-          <div className="space-y-6 text-left text-foreground">
+          <div className="auth-rise-delay space-y-6 text-left text-foreground">
             <p className="inline-flex items-center gap-2 rounded-full bg-foreground/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide">
               Set a new password
               <span className="h-2 w-2 rounded-full bg-accent shadow-[0_0_12px_rgba(94,234,212,0.7)]" />
             </p>
             <h1 className="text-4xl font-bold leading-tight md:text-5xl">Secure your account again</h1>
             <p className="max-w-xl text-lg text-muted-foreground">
-              Choose a strong password to regain access to your InsightPilot workspace.
+              Choose a strong password to get back into your InsightPilot account.
             </p>
             <div className="flex flex-wrap gap-3 text-sm text-foreground/80">
               <span className="rounded-full bg-white/5 px-3 py-1 shadow-inner shadow-white/5">
@@ -71,7 +70,7 @@ export default function ResetPassword() {
             <div className="absolute -inset-6 rounded-3xl bg-gradient-to-br from-white/10 via-white/5 to-transparent blur-3xl" />
             <form
               onSubmit={handleSubmit}
-              className="relative z-10 space-y-5 rounded-3xl border border-white/10 bg-card/80 p-8 shadow-2xl backdrop-blur"
+              className="relative z-10 space-y-5 rounded-3xl neon-edge auth-rise p-8 shadow-2xl backdrop-blur"
             >
               <div className="flex items-center justify-between">
                 <div>

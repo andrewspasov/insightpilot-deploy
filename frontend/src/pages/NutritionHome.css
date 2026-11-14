@@ -118,7 +118,7 @@ body.nutrition-scene-active #root { height: 100svh; min-height: 0; }
 
 .n-lab { margin-top: 22px; padding: 16px; border: 1px solid var(--n-line); background: hsl(205 55% 5% / .88); animation: n-readout .9s .2s ease both; }
 .n-lab label { display: grid; gap: 6px; font-size: 10px; color: var(--n-muted); }
-.n-lab input, .n-lab select { width: 100%; min-width: 0; height: 40px; background: hsl(204 35% 9%); color: hsl(190 35% 96%); border: 1px solid var(--n-line); padding: 0 10px; font-size: 12px; border-radius: 0; }
+.n-lab input, .n-lab select, .n-lab .n-neon-select { width: 100%; min-width: 0; height: 40px; background: hsl(204 35% 9%); color: hsl(190 35% 96%); border: 1px solid var(--n-line); padding: 0 10px; font-size: 12px; border-radius: 0; }
 .n-portion-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
 .n-lab-totals { display: grid; grid-template-columns: 1.25fr 1fr 1fr 1fr; gap: 8px; margin-top: 16px; }
 .n-lab-totals span { font-size: 9px; color: var(--n-muted); }
@@ -231,7 +231,7 @@ body.nutrition-scene-active #root { height: 100svh; min-height: 0; }
   .n-motion-controls button { width: 36px; }
   .n-lab { margin-top: 12px; padding: 10px; }
   .n-lab label { font-size: 9px; gap: 4px; }
-  .n-lab select, .n-lab input { height: 36px; font-size: 16px; }
+  .n-lab select, .n-lab input, .n-lab .n-neon-select { height: 36px; font-size: 16px; }
   .n-portion-fields { grid-template-columns: 1fr 1fr; margin-top: 8px; gap: 10px; }
   .n-lab-totals { margin-top: 10px; }
   .n-lab-totals strong { font-size: 17px; }

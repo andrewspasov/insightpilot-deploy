@@ -17,6 +17,7 @@ import { useToolAccess } from "@/hooks/use-entitlements";
 import { useToast } from "@/hooks/use-toast";
 import { formatIsoDate, getTodayIsoDate, percentOfTarget } from "@/lib/nutrition";
 import type { NutritionGoalType } from "@/types/nutrition";
+import { NeonSelect } from "@/components/ui/neon-select";
 
 function toNumber(value: string) {
   const parsed = Number(value);
@@ -260,16 +261,17 @@ export default function NutritionOverview() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <select
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              <NeonSelect
+                aria-label="Goal"
                 value={goalType}
-                onChange={(event) => setGoalType(event.target.value as NutritionGoalType)}
-              >
-                <option value="track">Track only</option>
-                <option value="maintain">Maintain</option>
-                <option value="lose">Lose</option>
-                <option value="gain">Gain</option>
-              </select>
+                onValueChange={(value) => setGoalType(value as NutritionGoalType)}
+                options={[
+                  { value: "track", label: "Track only" },
+                  { value: "maintain", label: "Maintain" },
+                  { value: "lose", label: "Lose" },
+                  { value: "gain", label: "Gain" },
+                ]}
+              />
 
               <Input
                 type="number"

@@ -9,6 +9,7 @@ import { useNutritionFoodSearch, useSaveRecipe } from "@/hooks/use-nutrition";
 import { useToast } from "@/hooks/use-toast";
 import { formatNutritionNumber } from "@/lib/nutrition";
 import type { NutritionFoodSearchResult, NutritionRecipe, RecipeIngredientPayload } from "@/types/nutrition";
+import { NeonSelect } from "@/components/ui/neon-select";
 
 type DraftIngredient = RecipeIngredientPayload & { key: string };
 
@@ -161,17 +162,12 @@ export function RecipeEditorDialog({ open, onOpenChange, recipe }: Props) {
             <div className="grid gap-2 sm:grid-cols-[1fr_100px_140px_auto] sm:items-center">
               <span className="text-sm font-medium">{picked.food_name}</span>
               <Input type="number" min="0.01" step="0.01" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
-              <select
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              <NeonSelect
+                aria-label="Unit"
                 value={unitKey}
-                onChange={(e) => setUnitKey(e.target.value)}
-              >
-                {picked.available_units.map((unit) => (
-                  <option key={unit.key} value={unit.key}>
-                    {unit.label}
-                  </option>
-                ))}
-              </select>
+                onValueChange={setUnitKey}
+                options={picked.available_units.map((unit) => ({ value: unit.key, label: unit.label }))}
+              />
               <div className="flex gap-2">
                 <Button onClick={addPicked}>Add</Button>
                 <Button variant="ghost" onClick={() => setPicked(null)}>

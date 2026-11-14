@@ -7,6 +7,7 @@ import { useCopyNutritionDay, useCopyNutritionEntries, useCopyNutritionMeal } fr
 import { useToast } from "@/hooks/use-toast";
 import { formatIsoDate, MEAL_LABELS, shiftIsoDate } from "@/lib/nutrition";
 import type { NutritionMealType } from "@/types/nutrition";
+import { NeonSelect } from "@/components/ui/neon-select";
 
 export type CopyScope =
   | { kind: "day" }
@@ -111,18 +112,15 @@ export function CopyFoodDialog({ scope, onOpenChange, currentDate, onCopied }: P
         {scope?.kind === "entries" && (
           <label className="space-y-1 text-sm">
             <span className="text-muted-foreground">Into which meal?</span>
-            <select
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            <NeonSelect
+              aria-label="Meal to copy into"
               value={targetMeal}
-              onChange={(event) => setTargetMeal(event.target.value as NutritionMealType | "")}
-            >
-              <option value="">Keep their meals</option>
-              {(Object.keys(MEAL_LABELS) as NutritionMealType[]).map((meal) => (
-                <option key={meal} value={meal}>
-                  {MEAL_LABELS[meal]}
-                </option>
-              ))}
-            </select>
+              onValueChange={(value) => setTargetMeal(value as NutritionMealType | "")}
+              options={[
+                { value: "", label: "Keep their meals" },
+                ...(Object.keys(MEAL_LABELS) as NutritionMealType[]).map((meal) => ({ value: meal, label: MEAL_LABELS[meal] })),
+              ]}
+            />
           </label>
         )}
 

@@ -389,3 +389,154 @@ All colors MUST be HSL.
   from { opacity: 1; }
   to { opacity: 0; }
 }
+
+/* ---------- Sidebar open/close animation (GlobalLayout, NutritionLayout) ---------- */
+.sidebar-shell {
+  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1), transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.sidebar-label {
+  display: inline-block;
+  max-width: 14rem;
+  overflow: hidden;
+  white-space: nowrap;
+  vertical-align: middle;
+  transition: opacity 0.3s ease, transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), max-width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: calc(var(--i, 0) * 35ms + 120ms);
+}
+.sidebar-shell[data-collapsed="true"] .sidebar-label {
+  opacity: 0;
+  max-width: 0;
+  transform: translateX(-10px);
+  transition-delay: 0ms;
+}
+.sidebar-item svg {
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), filter 0.3s ease;
+}
+.sidebar-item:hover svg {
+  transform: scale(1.15);
+}
+.sidebar-shell[data-collapsed="true"] .sidebar-item svg {
+  transform: scale(1.1);
+}
+.sidebar-toggle svg {
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.sidebar-shell[data-collapsed="true"] .sidebar-toggle svg {
+  transform: rotate(180deg);
+}
+/* A light sweep down the sidebar's edge each time it opens or closes. */
+.sidebar-beam {
+  position: absolute;
+  top: 0;
+  right: -1px;
+  width: 2px;
+  height: 100%;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, hsl(var(--primary)), hsl(var(--accent)), transparent);
+  background-size: 100% 40%;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 0 6px hsl(var(--primary)));
+  animation: sidebar-beam 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes sidebar-beam {
+  from { background-position: 0 -40%; opacity: 1; }
+  to { background-position: 0 140%; opacity: 0; }
+}
+/* Phone: items slide in one after another when the menu opens. */
+@media (max-width: 1023px) {
+  .sidebar-shell[data-open="true"] .sidebar-item {
+    animation: sidebar-item-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: calc(var(--i, 0) * 45ms + 80ms);
+  }
+}
+@keyframes sidebar-item-in {
+  from { opacity: 0; transform: translateX(-16px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-shell, .sidebar-label, .sidebar-item svg, .sidebar-toggle svg { transition: none; }
+  .sidebar-beam, .sidebar-shell[data-open="true"] .sidebar-item { animation: none; }
+}
+
+/* ---------- Account pages: animated backdrop (AuthBackdrop) ---------- */
+.auth-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -10;
+  overflow: hidden;
+  pointer-events: none;
+}
+.auth-grid {
+  position: absolute;
+  inset: -50% -25% 0;
+  background-image:
+    linear-gradient(hsl(var(--primary) / 0.14) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--primary) / 0.14) 1px, transparent 1px);
+  background-size: 56px 56px;
+  transform: perspective(700px) rotateX(58deg);
+  transform-origin: 50% 100%;
+  mask-image: linear-gradient(to top, black 0%, transparent 75%);
+  -webkit-mask-image: linear-gradient(to top, black 0%, transparent 75%);
+  animation: auth-grid-move 6s linear infinite;
+}
+@keyframes auth-grid-move {
+  from { background-position: 0 0; }
+  to { background-position: 0 56px; }
+}
+.auth-aurora {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: 0.55;
+  will-change: transform;
+}
+.auth-aurora-a { width: 34rem; height: 34rem; left: -8rem; top: -6rem; background: hsl(var(--primary) / 0.5); animation: auth-drift-a 18s ease-in-out infinite; }
+.auth-aurora-b { width: 30rem; height: 30rem; right: -10rem; top: 20%; background: hsl(var(--accent) / 0.45); animation: auth-drift-b 22s ease-in-out infinite; }
+.auth-aurora-c { width: 26rem; height: 26rem; left: 30%; bottom: -10rem; background: hsl(280 85% 60% / 0.32); animation: auth-drift-c 26s ease-in-out infinite; }
+@keyframes auth-drift-a { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(18vw, 12vh) scale(1.15); } }
+@keyframes auth-drift-b { 0%, 100% { transform: translate(0, 0) scale(1.05); } 50% { transform: translate(-16vw, 18vh) scale(0.9); } }
+@keyframes auth-drift-c { 0%, 100% { transform: translate(0, 0) scale(0.95); } 50% { transform: translate(-10vw, -20vh) scale(1.2); } }
+.auth-speck {
+  position: absolute;
+  border-radius: 9999px;
+  background: hsl(var(--primary));
+  box-shadow: 0 0 10px hsl(var(--primary)), 0 0 18px hsl(var(--accent) / 0.6);
+  opacity: 0;
+  animation-name: auth-speck-float;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+@keyframes auth-speck-float {
+  0% { opacity: 0; transform: translateY(0) scale(0.6); }
+  20% { opacity: 0.9; }
+  80% { opacity: 0.6; }
+  100% { opacity: 0; transform: translateY(-90px) scale(1.1); }
+}
+.auth-home-link {
+  position: absolute;
+  z-index: 20;
+  top: calc(1rem + env(safe-area-inset-top, 0px));
+  left: max(1rem, env(safe-area-inset-left, 0px));
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 9999px;
+  border: 1px solid hsl(var(--primary) / 0.35);
+  background: hsl(var(--card) / 0.6);
+  backdrop-filter: blur(12px);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+.auth-home-link:hover { border-color: hsl(var(--primary)); box-shadow: 0 0 18px hsl(var(--primary) / 0.35); transform: translateX(-2px); }
+.auth-home-link:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+/* Cards and headlines rise in on load. */
+.auth-rise { animation: auth-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.auth-rise-delay { animation: auth-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both; }
+@keyframes auth-rise { from { opacity: 0; transform: translateY(18px) scale(0.98); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .auth-grid, .auth-aurora, .auth-speck, .auth-rise, .auth-rise-delay { animation: none; }
+  .auth-speck { opacity: 0.5; }
+}

@@ -1,4 +1,5 @@
-import { Shield, Lock, FileText, Cookie, Database, UserCheck, Mail } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowLeft, Shield, Lock, FileText, Cookie, Database, UserCheck, Mail } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
@@ -9,6 +10,11 @@ export default function Privacy() {
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-[120px] animate-[float_20s_ease-in-out_infinite]" />
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-[120px] animate-[float_25s_ease-in-out_infinite_reverse]" />
       
+      <Link to="/" className="auth-home-link">
+        <ArrowLeft className="h-4 w-4" />
+        Back to homepage
+      </Link>
+
       {/* Content */}
       <div className="relative z-10 max-w-4xl mx-auto px-6 py-20">
         {/* Header */}
