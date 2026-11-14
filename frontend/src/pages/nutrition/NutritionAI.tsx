@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AlertTriangle, Bot, CheckCircle2, Lock, Plus, Send, Sparkles, User, XCircle } from "lucide-react";
 
@@ -323,6 +323,13 @@ export default function NutritionAI() {
   const handleConfirmAction = coach.confirmAction;
   const handleCancelAction = coach.cancelAction;
 
+  // Keep the newest message in view.
+  const messagesRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const box = messagesRef.current;
+    if (box) box.scrollTo({ top: box.scrollHeight, behavior: "smooth" });
+  }, [messages.length, coach.isSending]);
+
   const sendMessage = async (messageText?: string) => {
     const text = (messageText ?? input).trim();
     if (!text || !canChat) {
@@ -394,7 +401,8 @@ export default function NutritionAI() {
       )}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        <Card className="flex min-h-[680px] flex-col overflow-hidden">
+        {/* Fixed height so the conversation scrolls inside the card, not the page. */}
+        <Card className="flex h-[min(78vh,860px)] min-h-[520px] flex-col overflow-hidden">
           <CardHeader className="border-b">
             <div className="flex items-center justify-between gap-3">
               <CardTitle>{agentOptions[selectedAgent].name}</CardTitle>
@@ -425,8 +433,8 @@ export default function NutritionAI() {
                 : "Ask questions. The AI can prepare nutrition logs, but you confirm before anything is saved."}
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-1 flex-col p-0">
-            <div className="flex-1 space-y-5 overflow-y-auto p-6">
+          <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+            <div ref={messagesRef} className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-6">
               {messages.map((message) => (
                 <ChatBubble
                   key={message.id}
