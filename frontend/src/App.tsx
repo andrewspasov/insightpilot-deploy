@@ -6,7 +6,6 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from "rea
 import { Suspense, lazy, type ReactNode } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { GlobalLayout } from "@/components/GlobalLayout";
-import { NtrLayout } from "@/components/ntr/NtrLayout";
 import { NutritionLayout } from "@/components/nutrition/NutritionLayout";
 import { NeonBackdrop } from "@/components/neon/NeonBackdrop";
 import ToolAccessGuard from "@/components/ToolAccessGuard";
@@ -33,13 +32,6 @@ import Notifications from "./pages/Notifications";
 import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
 
-// NTR TOOL WORKSPACE PAGES
-import NtrDashboard from "./pages/ntr/NtrDashboard";
-import NtrAutomations from "./pages/ntr/NtrAutomations";
-import NtrReports from "./pages/ntr/NtrReports";
-import NtrAIAssistant from "./pages/ntr/NtrAIAssistant";
-import NtrHistory from "./pages/ntr/NtrHistory";
-import NtrIntegrations from "./pages/ntr/NtrIntegrations";
 import NutritionOverview from "./pages/nutrition/NutritionOverview";
 import NutritionLogs from "./pages/nutrition/NutritionLogs";
 import NutritionInsights from "./pages/nutrition/NutritionInsights";
@@ -47,6 +39,7 @@ import NutritionReports from "./pages/nutrition/NutritionReports";
 
 // Auth guard
 import RequireAuth from "./components/RequireAuth";
+import FitnessHome from "./pages/FitnessHome";
 import DialogHost from "./components/DialogHost";
 
 const queryClient = new QueryClient();
@@ -65,12 +58,6 @@ const GlobalLayoutWrapper = () => (
   <GlobalLayout>
     <Outlet />
   </GlobalLayout>
-);
-
-const NtrLayoutWrapper = () => (
-  <NtrLayout>
-    <Outlet />
-  </NtrLayout>
 );
 
 const NutritionLayoutWrapper = () => (
@@ -149,23 +136,18 @@ const App = () => (
           {/* Legacy global tools entry point */}
           <Route path="/tools" element={<Navigate to="/dashboard/tools" replace />} />
 
-          {/* ========== NICHE TRENDRADAR TOOL WORKSPACE ========== */}
+          {/* ========== FITNESS TOOL (placeholder until the real app is built) ========== */}
           <Route
-            path="/tools/ntr"
+            path="/tools/fitness"
             element={
               <RequireAuth>
-                <ToolAccessGuard toolKey="ntr">
-                  <NtrLayoutWrapper />
+                <ToolAccessGuard toolKey="fitness">
+                  <GlobalLayoutWrapper />
                 </ToolAccessGuard>
               </RequireAuth>
             }
           >
-            <Route index element={<NtrDashboard />} />
-            <Route path="automations" element={<NtrAutomations />} />
-            <Route path="reports" element={<NtrReports />} />
-            <Route path="ai-assistant" element={<NtrAIAssistant />} />
-            <Route path="history" element={<NtrHistory />} />
-            <Route path="integrations" element={<NtrIntegrations />} />
+            <Route index element={<FitnessHome />} />
           </Route>
 
           {/* ========== NUTRITION TOOL WORKSPACE ========== */}

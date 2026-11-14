@@ -82,8 +82,9 @@ per environment and must also be added in the Google/Facebook consoles.
 
 ### Other (copy from live if set there)
 
-`INSIGHTPILOT_INTERNAL_TOKEN`, `YOUTUBE_API_KEY`, `PEXELS_API_KEY`,
-`MERCADOLIBRE_*`.
+`PEXELS_API_KEY` (optional photo fallback). The old NicheTrendRadar variables
+(`INSIGHTPILOT_INTERNAL_TOKEN`, `YOUTUBE_API_KEY`, `MERCADOLIBRE_*`) are no
+longer used and can be deleted from Render.
 
 ## Scheduled job
 

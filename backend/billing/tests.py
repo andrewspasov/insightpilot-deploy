@@ -169,3 +169,40 @@ class StripeWebhookInvoiceTests(APITestCase):
         self.subscription.refresh_from_db()
         self.assertEqual(self.subscription.status, Subscription.STATUS_ACTIVE)
         self.assertEqual(Order.objects.get(stripe_invoice_id="in_hook_123").subscription, self.subscription)
+
+
+class ToolsAndComingSoonPassTests(APITestCase):
+    def setUp(self):
+        from billing.models import Tool  # noqa: F401  (tools come from the migrations)
+
+        self.user = get_user_model().objects.create_user(
+            username="passes-user", email="passes-user@example.com", password="password123"
+        )
+        self.client.force_authenticate(self.user)
+        self.gold, _ = AccessPass.objects.update_or_create(
+            key=AccessPass.KEY_GOLD,
+            defaults={
+                "name": "Gold Access Pass", "monthly_price_cents": 1499, "tool_limit": 3,
+                "stripe_price_id": "price_gold_test", "is_active": True, "coming_soon": True,
+            },
+        )
+
+    def test_fitness_replaces_nichetrendradar(self):
+        from billing.models import Tool
+
+        keys = set(Tool.objects.filter(is_active=True).values_list("key", flat=True))
+        self.assertIn("fitness", keys)
+        self.assertIn("nutrition", keys)
+        self.assertNotIn("ntr", keys)
+
+    def test_passes_say_which_are_coming_soon(self):
+        response = self.client.get("/api/billing/passes/")
+        gold = next(p for p in response.data["passes"] if p["key"] == "gold")
+        self.assertTrue(gold["coming_soon"])
+
+    @patch("billing.views.stripe_service.create_subscription")
+    def test_a_coming_soon_pass_cannot_be_bought(self, mock_create):
+        response = self.client.post("/api/billing/create-subscription/", {"target_pass_key": "gold"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("isn't available yet", response.data["detail"])
+        mock_create.assert_not_called()

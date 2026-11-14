@@ -11,6 +11,8 @@ export type AccessPass = {
   name: string;
   tool_limit: number;
   monthly_price_cents: number;
+  /** Listed but not for sale yet (Gold and Platinum for now). */
+  coming_soon?: boolean;
 };
 
 export type BillingOrder = {

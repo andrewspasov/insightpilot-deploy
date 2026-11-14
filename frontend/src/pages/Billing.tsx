@@ -46,7 +46,8 @@ export default function Billing() {
     if (data?.current_pass?.key) {
       setTargetPassKey(data.current_pass.key);
     } else if (!targetPassKey && passData?.passes?.length) {
-      setTargetPassKey(passData.passes[0].key);
+      const firstForSale = passData.passes.find((pass) => !pass.coming_soon) ?? passData.passes[0];
+      setTargetPassKey(firstForSale.key);
     }
     if (data?.selected_tool_keys) {
       setSelectedToolKeys(data.selected_tool_keys);
@@ -267,18 +268,27 @@ export default function Billing() {
                     key={pass.key}
                     type="button"
                     className={`rounded-lg border px-3 py-2 text-left transition ${
-                      targetPassKey === pass.key
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:border-primary/40"
+                      pass.coming_soon
+                        ? "cursor-not-allowed border-dashed border-border opacity-55"
+                        : targetPassKey === pass.key
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-primary/40"
                     }`}
                     onClick={() => setTargetPassKey(pass.key)}
-                    disabled={!canManagePassSelection}
+                    disabled={!canManagePassSelection || pass.coming_soon}
+                    title={pass.coming_soon ? "Not available yet" : undefined}
                   >
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
                       <p className="font-medium">{pass.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        ${(pass.monthly_price_cents / 100).toFixed(2)}
-                      </p>
+                      {pass.coming_soon ? (
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+                          Coming soon
+                        </span>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          ${(pass.monthly_price_cents / 100).toFixed(2)}
+                        </p>
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground">{pass.tool_limit} tool slots</p>
                   </button>
@@ -292,6 +302,7 @@ export default function Billing() {
               disabled={
                 !canManagePassSelection
                 || !selectedPass
+                || Boolean(selectedPass.coming_soon)
                 || paymentPending
                 || changePass.isPending
                 || createSubscription.isPending

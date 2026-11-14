@@ -120,7 +120,6 @@ INSTALLED_APPS = [
     "taggit",
     "blog",
     "api",
-    "ntr",
     "billing",
     "nutrition",
     "insight_ai",
@@ -158,7 +157,7 @@ TEMPLATES = [
             ],
             # Ensure custom template filters are globally available
             'builtins': [
-                'ntr.templatetags.compat',
+                'accounts.templatetags.compat',
             ],
         },
     },
@@ -281,10 +280,6 @@ SIMPLE_JWT = {
 # Any origin is fine for local development; production only allows the list above.
 CORS_ALLOW_ALL_ORIGINS = DEBUG
 
-# NicheTrendRadar external connectors
-# YouTube Data API key (used by youtube_client).
-YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "")
-
 # Nutrition external connectors
 USDA_FOODDATA_CENTRAL_API_KEY = os.getenv("USDA_FOODDATA_CENTRAL_API_KEY", "").strip()
 # Food photos for diary entries and example meals: an Unsplash access key
@@ -305,15 +300,6 @@ INSIGHT_AI_MONTHLY_MESSAGE_LIMIT = env_int("INSIGHT_AI_MONTHLY_MESSAGE_LIMIT", 1
 INSIGHT_AI_MONTHLY_TOKEN_LIMIT = env_int("INSIGHT_AI_MONTHLY_TOKEN_LIMIT", 100000)
 INSIGHT_AI_MAX_OUTPUT_TOKENS = env_int("INSIGHT_AI_MAX_OUTPUT_TOKENS", 700)
 INSIGHT_AI_TIMEOUT_SECONDS = env_int("INSIGHT_AI_TIMEOUT_SECONDS", 30)
-
-# MercadoLibre OAuth configuration (used by mercadolibre_client).
-MERCADOLIBRE_CLIENT_ID = os.getenv("MERCADOLIBRE_CLIENT_ID", "")
-MERCADOLIBRE_CLIENT_SECRET = os.getenv("MERCADOLIBRE_CLIENT_SECRET", "")
-MERCADOLIBRE_REDIRECT_URI = os.getenv("MERCADOLIBRE_REDIRECT_URI", "")
-MERCADOLIBRE_ACCESS_TOKEN = os.getenv("MERCADOLIBRE_ACCESS_TOKEN", "")
-
-# Shared secret for internal automation calls (e.g., n8n -> InsightPilot).
-INSIGHTPILOT_INTERNAL_TOKEN = os.getenv("INSIGHTPILOT_INTERNAL_TOKEN", "").strip()
 
 # Frontend base URL used for password reset links.
 FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173").strip()

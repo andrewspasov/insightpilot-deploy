@@ -22,10 +22,8 @@ export default function Settings() {
   const [language, setLanguage] = useState('en');
 
   // Notification settings
-  const [dailyTrendEmail, setDailyTrendEmail] = useState(true);
   const [weeklyReportEmail, setWeeklyReportEmail] = useState(true);
   const [importantAlerts, setImportantAlerts] = useState(true);
-  const [priceAlerts, setPriceAlerts] = useState(false);
 
   // Workspace settings
   const [companyName, setCompanyName] = useState('InsightPilot Inc.');
@@ -217,25 +215,12 @@ export default function Settings() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="daily-trend">Daily Trend Email</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Receive daily product trend updates
-                    </p>
-                  </div>
-                  <Switch
-                    id="daily-trend"
-                    checked={dailyTrendEmail}
-                    onCheckedChange={setDailyTrendEmail}
-                  />
-                </div>
 
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label htmlFor="weekly-report">Weekly Report Email</Label>
                     <p className="text-sm text-muted-foreground">
-                      Get comprehensive weekly market reports
+                      A weekly summary of your nutrition and progress
                     </p>
                   </div>
                   <Switch
@@ -259,19 +244,6 @@ export default function Settings() {
                   />
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="price-alerts">Price Change Alerts</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Notify when competitor prices change significantly
-                    </p>
-                  </div>
-                  <Switch
-                    id="price-alerts"
-                    checked={priceAlerts}
-                    onCheckedChange={setPriceAlerts}
-                  />
-                </div>
               </CardContent>
             </Card>
           </TabsContent>

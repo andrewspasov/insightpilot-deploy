@@ -103,7 +103,7 @@ class CustomerPassActionForm(ActionForm):
     )
     tool_keys_csv = forms.CharField(
         required=False,
-        help_text="Comma-separated tool keys, e.g. ntr,nutrition",
+        help_text="Comma-separated tool keys, e.g. nutrition,fitness",
     )
 
 
@@ -123,13 +123,13 @@ class SubscriptionPassActionForm(ActionForm):
     )
     tool_keys_csv = forms.CharField(
         required=False,
-        help_text="Comma-separated tool keys, e.g. ntr,nutrition",
+        help_text="Comma-separated tool keys, e.g. nutrition,fitness",
     )
 
 
 @admin.register(AccessPass)
 class AccessPassAdmin(admin.ModelAdmin):
-    list_display = ("name", "key", "monthly_price_cents", "tool_limit", "is_active", "stripe_price_id")
+    list_display = ("name", "key", "monthly_price_cents", "tool_limit", "is_active", "coming_soon", "stripe_price_id")
     list_filter = ("is_active",)
     search_fields = ("name", "key", "stripe_price_id", "previous_stripe_price_ids")
 

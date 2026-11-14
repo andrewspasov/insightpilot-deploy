@@ -10,18 +10,39 @@ from rest_framework.views import APIView
 User = get_user_model()
 
 
+AVATAR_SIZE_PX = 256
+
+
 def _avatar_url(user, request=None):
-    if not getattr(user, "avatar", None):
-        return None
+    """The photo as a data URL, ready for <img src> on the website and phone."""
+    return user.avatar_data or None
 
+
+def _avatar_data_url(uploaded) -> str:
+    """Square-crop, shrink to 256 px and encode as a JPEG data URL (~20 KB)."""
+    import base64
+    import io
+
+    from PIL import Image, ImageOps
+
+    image = Image.open(uploaded)
+    image = ImageOps.exif_transpose(image)  # phone photos come rotated
+    image = ImageOps.fit(image.convert("RGB"), (AVATAR_SIZE_PX, AVATAR_SIZE_PX), Image.Resampling.LANCZOS)
+    buffer = io.BytesIO()
+    image.save(buffer, format="JPEG", quality=85, optimize=True)
+    return "data:image/jpeg;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
+
+
+def _forget_old_avatar_file(user):
+    """Drop the pre-database upload, if any (its file may already be gone)."""
+    if not user.avatar:
+        return
+    name = user.avatar.name
     try:
-        raw_url = user.avatar.url
-    except ValueError:
-        return None
-
-    if request is None:
-        return raw_url
-    return request.build_absolute_uri(raw_url)
+        user.avatar.storage.delete(name)
+    except Exception:  # noqa: BLE001 - the file is often missing on Render
+        pass
+    user.avatar = None
 
 
 def _serialize_user(user, request=None) -> dict:
@@ -145,29 +166,23 @@ class CurrentUserAvatarView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        try:
+            data_url = _avatar_data_url(uploaded_avatar)
+        except Exception:  # noqa: BLE001 - Pillow raises many types for bad files
+            return Response(
+                {"detail": "That file couldn't be read as an image. Try a JPG or PNG."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         user = request.user
-        old_avatar_name = user.avatar.name if getattr(user, "avatar", None) else ""
-        storage = user.avatar.storage
-
-        user.avatar = uploaded_avatar
-        user.save(update_fields=["avatar"])
-
-        if old_avatar_name and old_avatar_name != user.avatar.name:
-            storage.delete(old_avatar_name)
-
+        _forget_old_avatar_file(user)
+        user.avatar_data = data_url
+        user.save(update_fields=["avatar", "avatar_data"])
         return Response(_serialize_user(user, request), status=status.HTTP_200_OK)
 
     def delete(self, request):
         user = request.user
-        if not user.avatar:
-            return Response(_serialize_user(user, request), status=status.HTTP_200_OK)
-
-        old_avatar_name = user.avatar.name
-        storage = user.avatar.storage
-
-        user.avatar = None
-        user.save(update_fields=["avatar"])
-        if old_avatar_name:
-            storage.delete(old_avatar_name)
-
+        _forget_old_avatar_file(user)
+        user.avatar_data = ""
+        user.save(update_fields=["avatar", "avatar_data"])
         return Response(_serialize_user(user, request), status=status.HTTP_200_OK)

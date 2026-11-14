@@ -5,7 +5,10 @@ class User(AbstractUser):
     
     # Make email unique across users
     email = models.EmailField(unique=True)
-    avatar = models.ImageField(upload_to="avatars/", blank=True, null=True)
+    avatar = models.ImageField(upload_to="avatars/", blank=True, null=True)  # old uploads; no longer written
+    # The profile photo itself: a small JPEG as a data URL, kept in the
+    # database so it survives deploys (Render's disk is wiped on each one).
+    avatar_data = models.TextField(blank=True, default="")
     
     # Stripe customer ID (to link Django user ↔ Stripe)
     stripe_customer_id = models.CharField(max_length=255, blank=True, null=True)
@@ -20,11 +23,6 @@ class User(AbstractUser):
             ("enterprise", "Enterprise"),
         ],
     )
-
-    # Automation preferences
-    daily_trends_enabled = models.BooleanField(default=False)
-    weekly_report_enabled = models.BooleanField(default=False)
-    price_engine_enabled = models.BooleanField(default=False)
 
     def __str__(self):
         return self.username

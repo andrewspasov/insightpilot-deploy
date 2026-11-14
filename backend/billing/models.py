@@ -27,6 +27,8 @@ class AccessPass(models.Model):
     # this pass.
     previous_stripe_price_ids = models.JSONField(default=list, blank=True)
     is_active = models.BooleanField(default=True)
+    # Listed on Billing but not yet for sale ("Coming soon").
+    coming_soon = models.BooleanField(default=False)
     sort_order = models.PositiveIntegerField(default=0)
 
     created_at = models.DateTimeField(auto_now_add=True)

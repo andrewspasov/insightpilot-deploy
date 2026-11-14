@@ -9,6 +9,16 @@ from rest_framework.test import APITestCase
 
 User = get_user_model()
 
+
+def _png_bytes(size=(800, 600)):
+    import io
+
+    from PIL import Image
+
+    buffer = io.BytesIO()
+    Image.new("RGB", size, (30, 160, 180)).save(buffer, format="PNG")
+    return buffer.getvalue()
+
 class CurrentUserViewTests(APITestCase):
     @classmethod
     def setUpClass(cls):
@@ -81,7 +91,7 @@ class CurrentUserViewTests(APITestCase):
         self.client.force_authenticate(user=self.user)
         avatar_file = SimpleUploadedFile(
             "avatar.png",
-            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR",
+            _png_bytes(),
             content_type="image/png",
         )
         response = self.client.post(
@@ -92,15 +102,16 @@ class CurrentUserViewTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.user.refresh_from_db()
-        self.assertTrue(bool(self.user.avatar))
-        self.assertIsInstance(response.data.get("avatar_url"), str)
-        self.assertIn("/media/avatars/", response.data["avatar_url"])
+        self.assertTrue(self.user.avatar_data.startswith("data:image/jpeg;base64,"))
+        self.assertEqual(response.data["avatar_url"], self.user.avatar_data)
+        # Stored small: a 256 px JPEG, whatever was uploaded.
+        self.assertLess(len(self.user.avatar_data), 60_000)
 
     def test_avatar_delete_clears_avatar(self):
         self.client.force_authenticate(user=self.user)
         avatar_file = SimpleUploadedFile(
             "avatar.png",
-            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR",
+            _png_bytes(),
             content_type="image/png",
         )
         upload_response = self.client.post(
@@ -113,5 +124,23 @@ class CurrentUserViewTests(APITestCase):
         delete_response = self.client.delete("/api/me/avatar/")
         self.assertEqual(delete_response.status_code, status.HTTP_200_OK)
         self.user.refresh_from_db()
-        self.assertFalse(bool(self.user.avatar))
+        self.assertEqual(self.user.avatar_data, "")
         self.assertIsNone(delete_response.data["avatar_url"])
+
+
+class AvatarUploadValidationTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="pic", email="pic@example.com", password="Sup3r-secret-pass")
+        self.client.force_authenticate(user=self.user)
+
+    def test_broken_image_is_refused_clearly(self):
+        bad = SimpleUploadedFile("photo.png", b"not really a png", content_type="image/png")
+        response = self.client.post("/api/me/avatar/", {"avatar": bad}, format="multipart")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("couldn't be read", response.data["detail"])
+
+    def test_me_returns_the_stored_photo(self):
+        upload = SimpleUploadedFile("photo.png", _png_bytes((300, 900)), content_type="image/png")
+        self.client.post("/api/me/avatar/", {"avatar": upload}, format="multipart")
+        response = self.client.get("/api/me/")
+        self.assertTrue(response.data["avatar_url"].startswith("data:image/jpeg;base64,"))

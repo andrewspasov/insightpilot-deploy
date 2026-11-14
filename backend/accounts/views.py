@@ -71,54 +71,6 @@ def register(request):
     )
 
 
-class InternalUserEmailsView(APIView):
-    """
-    Internal-only endpoint returning user emails for automation workflows.
-    Auth: X-INSIGHTPILOT-TOKEN must match INSIGHTPILOT_INTERNAL_TOKEN.
-    """
-
-    permission_classes = [permissions.AllowAny]
-
-    def _check_token(self, request):
-        expected = getattr(settings, "INSIGHTPILOT_INTERNAL_TOKEN", "").strip()
-        if not expected:
-            return Response(
-                {"detail": "Server missing INSIGHTPILOT_INTERNAL_TOKEN"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-        provided = request.headers.get("X-INSIGHTPILOT-TOKEN")
-        if provided != expected:
-            return Response(
-                {"detail": "Unauthorized"},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
-
-        return None
-
-    def get(self, request):
-        token_error = self._check_token(request)
-        if token_error:
-            return token_error
-
-        users = (
-            User.objects.filter(is_active=True, email__isnull=False)
-            .exclude(email="")
-            .order_by("id")
-        )
-
-        payload = [{"id": user.id, "email": user.email} for user in users]
-
-        return Response(
-            {
-                "ok": True,
-                "count": len(payload),
-                "users": payload,
-            },
-            status=status.HTTP_200_OK,
-        )
-
-
 class PasswordResetRequestView(APIView):
     permission_classes = [permissions.AllowAny]
 
@@ -156,7 +108,11 @@ class PasswordResetRequestView(APIView):
                     <p style=\"margin: 0 0 18px; font-size: 14px; color: #334155;\">
                       We received a request to reset your InsightPilot password. Click the button below to continue.
                     </p>
-                    <a href=\"{reset_url}\" style=\"display: inline-block; background: linear-gradient(90deg, #2563eb, #14b8a6); color: #ffffff; text-decoration: none; padding: 12px 18px; border-radius: 10px; font-weight: 600; font-size: 14px;\">Reset password</a>
+                    <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\"><tr>
+                      <td bgcolor=\"#0f766e\" style=\"border-radius: 10px; background-color: #0f766e;\">
+                        <a href=\"{reset_url}\" style=\"display: inline-block; background-color: #0f766e; color: #ffffff; text-decoration: none; padding: 12px 18px; border-radius: 10px; font-weight: 600; font-size: 14px; font-family: Arial, Helvetica, sans-serif;\">Reset password</a>
+                      </td>
+                    </tr></table>
                     <p style=\"margin: 18px 0 0; font-size: 12px; color: #64748b;\">
                       Or paste this link into your browser:<br />
                       <span style=\"color: #2563eb;\">{reset_url}</span>

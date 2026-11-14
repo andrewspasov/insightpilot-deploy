@@ -26,6 +26,7 @@ def _serialize_pass(access_pass: AccessPass | None):
         "name": access_pass.name,
         "tool_limit": access_pass.tool_limit,
         "monthly_price_cents": access_pass.monthly_price_cents,
+        "coming_soon": access_pass.coming_soon,
     }
 
 
@@ -247,6 +248,7 @@ class BillingPassesView(APIView):
                 "name": access_pass.name,
                 "tool_limit": access_pass.tool_limit,
                 "monthly_price_cents": access_pass.monthly_price_cents,
+                "coming_soon": access_pass.coming_soon,
             }
             for access_pass in passes
         ]
@@ -294,6 +296,10 @@ class CreateSubscriptionView(APIView):
         access_pass = AccessPass.objects.filter(key=target_key, is_active=True).first()
         if not access_pass:
             return Response({"detail": "Invalid access pass."}, status=status.HTTP_400_BAD_REQUEST)
+        if access_pass.coming_soon:
+            return Response(
+                {"detail": f"{access_pass.name} isn't available yet."}, status=status.HTTP_400_BAD_REQUEST
+            )
         if not access_pass.stripe_price_id:
             return Response(
                 {"detail": f"Pass '{access_pass.name}' is missing Stripe price id."},
@@ -378,6 +384,10 @@ class ChangePassView(APIView):
         target_pass = AccessPass.objects.filter(key=target_key, is_active=True).first()
         if not target_pass:
             return Response({"detail": "Invalid target pass."}, status=status.HTTP_400_BAD_REQUEST)
+        if target_pass.coming_soon:
+            return Response(
+                {"detail": f"{target_pass.name} isn't available yet."}, status=status.HTTP_400_BAD_REQUEST
+            )
         if not target_pass.stripe_price_id:
             return Response(
                 {"detail": f"Pass '{target_pass.name}' is missing Stripe price id."},

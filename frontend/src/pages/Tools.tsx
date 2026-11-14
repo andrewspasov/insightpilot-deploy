@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sparkles, Zap } from "lucide-react";
+import { Apple, Dumbbell } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,16 +10,16 @@ import { useToast } from "@/hooks/use-toast";
 
 const DEFAULT_TOOLS = [
   {
-    key: "ntr",
-    name: "NicheTrendRadar",
-    description: "Track product niches and detect emerging trends.",
+    key: "nutrition",
+    name: "Nutrition",
+    description: "Track meals, macros, and weight in one nutrition diary.",
     entitled: false,
     selected: false,
   },
   {
-    key: "nutrition",
-    name: "Nutrition",
-    description: "Track meals, macros, and weight in one nutrition diary.",
+    key: "fitness",
+    name: "Fitness",
+    description: "Workouts and training (coming soon).",
     entitled: false,
     selected: false,
   },
@@ -45,10 +45,6 @@ export default function Tools() {
   const handleOpen = (key: string, entitled: boolean) => {
     if (!entitled) {
       navigate("/dashboard/billing");
-      return;
-    }
-    if (key === "ntr") {
-      navigate("/tools/ntr");
       return;
     }
     navigate(`/tools/${key}`);
@@ -133,10 +129,10 @@ export default function Tools() {
                 <CardHeader className="flex flex-row items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="h-9 w-9 rounded-lg bg-primary/15 flex items-center justify-center">
-                      {tool.key === "ntr" ? (
-                        <Zap className="h-5 w-5 text-primary" />
+                      {tool.key === "fitness" ? (
+                        <Dumbbell className="h-5 w-5 text-primary" />
                       ) : (
-                        <Sparkles className="h-5 w-5 text-accent-foreground" />
+                        <Apple className="h-5 w-5 text-accent-foreground" />
                       )}
                     </div>
                     <div>

@@ -168,8 +168,8 @@ const About = () => {
                           <TrendingUp className="h-7 w-7 text-white" />
                         </div>
                         <div>
-                          <div className="font-semibold text-lg">Niche Trend Radar</div>
-                          <div className="text-sm text-white/50">Active monitoring</div>
+                          <div className="font-semibold text-lg">InsightPilot Nutrition</div>
+                          <div className="text-sm text-white/50">Daily tracking</div>
                         </div>
                       </div>
                       
@@ -199,7 +199,7 @@ const About = () => {
                       </div>
                       
                       <div className="flex gap-2 flex-wrap">
-                        {['Trending', 'AI', 'SaaS', 'Automation'].map((tag, i) => (
+                        {['Nutrition', 'AI coach', 'Fitness', 'Habits'].map((tag, i) => (
                           <span 
                             key={i}
                             className="px-4 py-2 rounded-full bg-blue-500/10 text-blue-400 text-xs font-medium border border-blue-500/20 hover:bg-blue-500/20 hover:scale-105 transition-all duration-200 cursor-default backdrop-blur-sm"
@@ -322,14 +322,14 @@ const About = () => {
             {[
               {
                 icon: Zap,
-                title: 'Automations Library',
-                description: 'Ready-to-use automation tools that handle everything from trend monitoring to price optimization.',
+                title: 'Nutrition & Fitness',
+                description: 'Log meals, follow a personal plan and train with workouts built around your goal.',
                 gradient: 'from-blue-500 to-purple-600'
               },
               {
                 icon: Brain,
                 title: 'AI Agent in Dashboard',
-                description: 'Your AI copilot that suggests the right automations, configures them, and keeps you updated.',
+                description: 'Your AI coach that answers questions about your day, logs food for you and adjusts your plan.',
                 gradient: 'from-purple-500 to-pink-500'
               },
               {
@@ -356,8 +356,8 @@ const About = () => {
         </div>
       </section>
 
-      {/* Niche Trend Radar Highlight */}
-      <section className="py-32 px-4 relative" id="section-ntr">
+      {/* Nutrition highlight */}
+      <section className="py-32 px-4 relative" id="section-nutrition">
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-blue-500/5 to-transparent" />
         <div className="container mx-auto max-w-7xl relative">
           <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-500/30 text-blue-400 text-sm font-semibold mb-12 backdrop-blur-xl">
@@ -365,28 +365,28 @@ const About = () => {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
             </span>
-            Automation 01
+            App 01
           </div>
           
           <div className="grid lg:grid-cols-2 gap-16 items-center">
             <div className="space-y-8">
               <h2 className="text-5xl md:text-6xl font-bold tracking-tight">
-                Niche Trend Radar
+                InsightPilot Nutrition
                 <span className="block text-2xl text-white/50 font-normal mt-4">
-                  Our first automation
+                  Our first app
                 </span>
               </h2>
               
               <p className="text-xl md:text-2xl text-white/70 leading-relaxed font-light">
-                It scans data about niches and trends, surfaces ideas and opportunities so you can see what's 
-                starting to move, and sends back clear, digestible insights rather than raw noise.
+                It tracks what you eat, builds a plan around your goal, and turns your days into clear,
+                simple feedback instead of a wall of numbers.
               </p>
               
               <div className="space-y-5 pt-6">
                 {[
-                  'Automatically track niche momentum',
-                  'Spot early trend shifts before everyone else',
-                  'Get simple summaries instead of raw data overload'
+                  'Log meals by search, photo or nutrition label',
+                  'Get a personal calorie and macro plan',
+                  'See simple weekly summaries instead of raw data'
                 ].map((feature, i) => (
                   <div 
                     key={i}
@@ -408,7 +408,7 @@ const About = () => {
               <Card className="relative p-10 bg-[#0f0f1a]/80 backdrop-blur-2xl border border-white/10 hover:border-white/20 rounded-3xl group-hover:scale-[1.02] transition-all duration-500 shadow-2xl">
                 <div className="space-y-8">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-2xl">Trending Insights</h3>
+                    <h3 className="font-semibold text-2xl">Today's progress</h3>
                     <span className="px-4 py-2 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-semibold border border-emerald-500/30 backdrop-blur-xl">
                       <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 mr-2 animate-pulse" />
                       Live
@@ -480,8 +480,8 @@ const About = () => {
                       <div>
                         <p className="text-sm font-semibold text-blue-400 mb-1">AI Insight</p>
                         <p className="text-white/90 leading-relaxed">
-                          Standing desks in EU show a 22% increase in interest compared to last week. 
-                          Consider testing a higher price point.
+                          You hit your protein goal 5 days out of 7 this week.
+                          A protein-rich breakfast would close the gap.
                         </p>
                       </div>
                     </div>
@@ -497,15 +497,15 @@ const About = () => {
       <section className="py-32 px-4" id="section-future">
         <div className="container mx-auto max-w-7xl">
           <h2 className="text-5xl md:text-6xl font-bold text-center mb-20 tracking-tight">
-            Many more automations on the way
+            More on the way
           </h2>
           
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
-              { title: 'Lead Follow-Up Autopilot', description: 'Never miss a lead with automated follow-up sequences', delay: 0 },
-              { title: 'CEO Daily Command Center', description: 'Your daily digest of metrics and priorities', delay: 0.1 },
-              { title: 'Price Optimization Engine', description: 'Dynamic pricing based on market signals', delay: 0.2 },
-              { title: 'Content Trend Scanner', description: 'Spot viral content patterns in your niche', delay: 0.3 }
+              { title: 'Fitness', description: 'Workouts, training plans and progress tracking', delay: 0 },
+              { title: 'Smarter AI coach', description: 'Check-ins that adapt to how your week is going', delay: 0.1 },
+              { title: 'Phone apps', description: 'InsightPilot on iPhone and Android', delay: 0.2 },
+              { title: 'Recipes & meal ideas', description: 'Meals that fit your plan and what you like', delay: 0.3 }
             ].map((automation, i) => (
               <div 
                 key={i} 
@@ -549,7 +549,7 @@ const About = () => {
               <div className="space-y-8">
                 {[
                   { step: '1', title: 'Tell the agent what you\'re trying to do', icon: MessageSquare },
-                  { step: '2', title: 'It suggests automations and config', icon: Lightbulb },
+                  { step: '2', title: 'It suggests meals and plan changes', icon: Lightbulb },
                   { step: '3', title: 'It keeps you updated with plain language', icon: BarChart3 }
                 ].map((step, i) => (
                   <div 
@@ -578,14 +578,14 @@ const About = () => {
                   <div className="flex gap-4 group/msg hover:scale-[1.02] transition-transform duration-200">
                     <div className="h-12 w-12 rounded-full bg-white/10 backdrop-blur-xl flex-shrink-0 border border-white/20" />
                     <div className="flex-1 bg-white/5 backdrop-blur-xl rounded-2xl rounded-tl-none p-5 border border-white/10">
-                      <p className="text-white/90">Hey! I want to track trends in the standing desk market.</p>
+                      <p className="text-white/90">I had two eggs and a slice of toast for breakfast.</p>
                     </div>
                   </div>
                   
                   {/* Agent message */}
                   <div className="flex gap-4 justify-end group/msg hover:scale-[1.02] transition-transform duration-200">
                     <div className="flex-1 bg-gradient-to-br from-blue-500/10 to-purple-500/10 backdrop-blur-xl rounded-2xl rounded-tr-none p-5 border border-blue-500/20">
-                      <p className="text-white/90">Great! I'll set up Niche Trend Radar for you. What region are you targeting?</p>
+                      <p className="text-white/90">Nice! That's about 230 kcal and 15 g protein. Shall I log it to breakfast?</p>
                     </div>
                     <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex-shrink-0 shadow-lg" />
                   </div>
@@ -594,7 +594,7 @@ const About = () => {
                   <div className="flex gap-4 group/msg hover:scale-[1.02] transition-transform duration-200">
                     <div className="h-12 w-12 rounded-full bg-white/10 backdrop-blur-xl flex-shrink-0 border border-white/20" />
                     <div className="flex-1 bg-white/5 backdrop-blur-xl rounded-2xl rounded-tl-none p-5 border border-white/10">
-                      <p className="text-white/90">EU market</p>
+                      <p className="text-white/90">Yes please</p>
                     </div>
                   </div>
                   
@@ -602,8 +602,8 @@ const About = () => {
                   <div className="flex gap-4 justify-end group/msg hover:scale-[1.02] transition-transform duration-200">
                     <div className="flex-1 bg-gradient-to-br from-blue-500/10 to-purple-500/10 backdrop-blur-xl rounded-2xl rounded-tr-none p-5 border border-blue-500/20">
                       <p className="text-white/90">
-                        Perfect! I've configured your EU standing desk trend monitor. You'll get weekly reports 
-                        starting next Monday. 📊
+                        Logged! You have 1,770 kcal and 125 g protein left for today.
+                        Aim for a protein-rich lunch.
                       </p>
                     </div>
                     <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex-shrink-0 shadow-lg" />
