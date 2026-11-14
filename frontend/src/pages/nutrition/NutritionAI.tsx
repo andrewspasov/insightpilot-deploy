@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
+import { MicButton } from "@/components/neon/MicButton";
 import { cn } from "@/lib/utils";
 import { PlanProposalCard, ProgramUpdateCard } from "@/components/nutrition/plans/PlanActionCards";
 import { CoachSettingsCard } from "@/components/nutrition/CoachSettingsCard";
@@ -478,6 +479,7 @@ export default function NutritionAI() {
                   className="min-h-[64px] resize-none"
                   disabled={!canChat}
                 />
+                <MicButton value={input} onChange={setInput} disabled={!canChat} className="h-[64px] w-[64px]" />
                 <Button
                   type="button"
                   size="icon"

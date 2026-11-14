@@ -186,3 +186,49 @@ class CurrentUserAvatarView(APIView):
         user.avatar_data = ""
         user.save(update_fields=["avatar", "avatar_data"])
         return Response(_serialize_user(user, request), status=status.HTTP_200_OK)
+
+
+class NotificationListView(APIView):
+    """GET: the user's latest notifications and how many are unread."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from accounts.models import Notification
+
+        items = Notification.objects.filter(user=request.user)[:50]
+        return Response(
+            {
+                "unread_count": Notification.objects.filter(user=request.user, read_at__isnull=True).count(),
+                "notifications": [
+                    {
+                        "id": n.id,
+                        "kind": n.kind,
+                        "title": n.title,
+                        "body": n.body,
+                        "link": n.link,
+                        "created_at": n.created_at,
+                        "read": n.read_at is not None,
+                    }
+                    for n in items
+                ],
+            }
+        )
+
+
+class NotificationReadView(APIView):
+    """POST {"ids": [...]} marks those as read; {"all": true} marks everything."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        from django.utils import timezone
+
+        from accounts.models import Notification
+
+        unread = Notification.objects.filter(user=request.user, read_at__isnull=True)
+        if not request.data.get("all"):
+            ids = [i for i in (request.data.get("ids") or []) if isinstance(i, int)]
+            unread = unread.filter(id__in=ids)
+        updated = unread.update(read_at=timezone.now())
+        return Response({"marked": updated})

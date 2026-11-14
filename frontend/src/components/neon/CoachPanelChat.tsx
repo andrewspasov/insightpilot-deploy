@@ -3,6 +3,7 @@ import { Send } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { MicButton } from "./MicButton";
 import { useCoachChat } from "@/hooks/use-coach-chat";
 import { ChatBubble } from "@/pages/nutrition/NutritionAI";
 import { ThinkingDots } from "./CoachMascot";
@@ -62,6 +63,7 @@ export default function CoachPanelChat() {
           className="min-h-[48px] resize-none rounded-2xl"
           disabled={!coach.canChat}
         />
+        <MicButton value={input} onChange={setInput} disabled={!coach.canChat} className="h-12 w-12 rounded-full" />
         <Button type="button" size="icon" aria-label="Send" className="h-12 w-12 shrink-0 rounded-full" disabled={!input.trim() || !coach.canChat} onClick={send}>
           <Send className="h-5 w-5" />
         </Button>

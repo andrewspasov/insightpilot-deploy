@@ -42,17 +42,24 @@ export default function Billing() {
   const [targetPassKey, setTargetPassKey] = useState<string>("");
   const [selectedToolKeys, setSelectedToolKeys] = useState<string[]>([]);
 
+  // Start on the current pass (or the first one for sale). Only re-sync when the
+  // current pass itself changes, so a pass the user clicks stays selected.
+  const currentPassKey = data?.current_pass?.key;
   useEffect(() => {
-    if (data?.current_pass?.key) {
-      setTargetPassKey(data.current_pass.key);
-    } else if (!targetPassKey && passData?.passes?.length) {
-      const firstForSale = passData.passes.find((pass) => !pass.coming_soon) ?? passData.passes[0];
-      setTargetPassKey(firstForSale.key);
+    if (currentPassKey) {
+      setTargetPassKey(currentPassKey);
     }
+  }, [currentPassKey]);
+  useEffect(() => {
+    if (!currentPassKey && passData?.passes?.length) {
+      setTargetPassKey((key) => key || (passData.passes.find((pass) => !pass.coming_soon) ?? passData.passes[0]).key);
+    }
+  }, [currentPassKey, passData?.passes]);
+  useEffect(() => {
     if (data?.selected_tool_keys) {
       setSelectedToolKeys(data.selected_tool_keys);
     }
-  }, [data?.current_pass?.key, data?.selected_tool_keys, passData?.passes, targetPassKey]);
+  }, [data?.selected_tool_keys]);
 
   const status = data?.status ?? "canceled";
   const nextBilling = data?.next_billing_date
@@ -111,6 +118,9 @@ export default function Billing() {
     }
   };
 
+  const isCurrentSelection = Boolean(currentPass && selectedPass && selectedPass.key === currentPass.key);
+  const isScheduledSelection = Boolean(selectedPass && data?.scheduled_pass?.key === selectedPass.key);
+
   const handleApplyPass = async () => {
     if (!selectedPass) return;
 
@@ -143,6 +153,15 @@ export default function Billing() {
     }
 
     if (!currentPass) return;
+    if (isCurrentSelection || isScheduledSelection) return;
+    if (!targetIsUpgrade && selectedToolKeys.length > selectedPass.tool_limit) {
+      toast({
+        title: "Too many tools for this pass",
+        description: `${selectedPass.name} includes ${selectedPass.tool_limit} tool${selectedPass.tool_limit === 1 ? "" : "s"}. Untick tools under Selected Tools first.`,
+        variant: "destructive",
+      });
+      return;
+    }
     if (selectedToolKeys.length === 0) {
       toast({
         title: "Select at least one tool",
@@ -276,7 +295,6 @@ export default function Billing() {
                     }`}
                     onClick={() => setTargetPassKey(pass.key)}
                     disabled={!canManagePassSelection || pass.coming_soon}
-                    title={pass.coming_soon ? "Not available yet" : undefined}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <p className="font-medium">{pass.name}</p>
@@ -303,6 +321,8 @@ export default function Billing() {
                 !canManagePassSelection
                 || !selectedPass
                 || Boolean(selectedPass.coming_soon)
+                || isCurrentSelection
+                || isScheduledSelection
                 || paymentPending
                 || changePass.isPending
                 || createSubscription.isPending
@@ -314,7 +334,13 @@ export default function Billing() {
                   ? "Purchase selected pass"
                   : paymentPending
                     ? "Waiting for payment"
-                    : "Apply pass change"}
+                    : isCurrentSelection
+                      ? "This is your current pass"
+                      : isScheduledSelection
+                        ? "Starts at your next billing date"
+                        : targetIsUpgrade
+                          ? `Upgrade to ${selectedPass?.name ?? "this pass"}`
+                          : `Switch to ${selectedPass?.name ?? "this pass"}`}
             </Button>
           </CardContent>
         </Card>

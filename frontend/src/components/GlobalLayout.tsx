@@ -21,6 +21,8 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { logout } from "@/lib/auth";
 import { useNavigate } from "react-router-dom";
 import { useEntitlements } from "@/hooks/use-entitlements";
+import { useNotifications } from "@/hooks/use-notifications";
+import { NotificationPopups } from "@/components/notifications/NotificationPopups";
 
 type GlobalLayoutProps = {
   children: ReactNode; // whatever page we show inside the layout
@@ -47,6 +49,7 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
   };
   const navigate = useNavigate();
   const { data } = useEntitlements();
+  const unreadCount = useNotifications().data?.unread_count ?? 0;
 
   const hasPassAccess = data?.status === "active" || data?.status === "on_hold";
   const visibleMenuItems = data
@@ -129,8 +132,18 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
                 activeClassName="bg-primary/10 text-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.45),0_0_16px_hsl(var(--primary)/0.25)] [&_svg]:drop-shadow-[0_0_6px_hsl(var(--primary))]"
                 onClick={() => setSidebarOpen(false)}
               >
-                <item.icon size={18} className="shrink-0" />
+                <span className="relative shrink-0">
+                  <item.icon size={18} />
+                  {item.path === "/dashboard/notifications" && unreadCount > 0 && sidebarCollapsed && (
+                    <span className="absolute -right-1.5 -top-1.5 h-2.5 w-2.5 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary))]" />
+                  )}
+                </span>
                 <span className="sidebar-label">{item.label}</span>
+                {item.path === "/dashboard/notifications" && unreadCount > 0 && !sidebarCollapsed && (
+                  <span className="ml-auto rounded-full bg-primary px-2 py-0.5 text-[11px] font-bold leading-none text-primary-foreground shadow-[0_0_10px_hsl(var(--primary)/0.6)]">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
               </NavLink>
             ))}
           </nav>
@@ -174,6 +187,8 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
           onClick={() => setSidebarOpen(false)}
         />
       )}
+
+      <NotificationPopups />
 
       {/* Main content */}
       <main className="flex-1 overflow-auto">

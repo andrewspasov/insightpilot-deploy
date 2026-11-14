@@ -12,6 +12,7 @@ from django.core.mail import send_mail
 from django.db.models import Max
 from django.utils import timezone
 
+from accounts.notifications import notify
 from nutrition.models import ExerciseEntry, MealEntry, NutritionProfile, WaterEntry, WeightEntry
 
 from .models import InsightAIUsage
@@ -315,6 +316,7 @@ def send_daily_report(user, day: date | None = None) -> str:
         fail_silently=False,
         html_message=html,
     )
+    notify(user, "report", "Today's report is in your inbox", f"Sent to {user.email}.", "/tools/nutrition/reports")
     return user.email
 
 

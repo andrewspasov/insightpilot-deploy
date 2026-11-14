@@ -16,6 +16,7 @@ except ModuleNotFoundError:  # pragma: no cover - handled at runtime
 from . import stripe_service, sync
 from .models import AccessPass, BillingEvent, Customer, Order, Subscription, SubscriptionNote, Tool
 from .permissions import get_current_subscription
+from accounts.notifications import notify
 
 
 def _serialize_pass(access_pass: AccessPass | None):
@@ -388,6 +389,10 @@ class ChangePassView(APIView):
             return Response(
                 {"detail": f"{target_pass.name} isn't available yet."}, status=status.HTTP_400_BAD_REQUEST
             )
+        if target_pass.id == subscription.access_pass_id:
+            return Response(
+                {"detail": f"You're already on {target_pass.name}."}, status=status.HTTP_400_BAD_REQUEST
+            )
         if not target_pass.stripe_price_id:
             return Response(
                 {"detail": f"Pass '{target_pass.name}' is missing Stripe price id."},
@@ -441,6 +446,13 @@ class ChangePassView(APIView):
                 if upgraded_now:
                     sync.set_selected_tools(synced, tools)
                     _sync_latest_invoice_order(stripe_subscription, synced, source="api")
+                    notify(
+                        request.user,
+                        "pass",
+                        f"You're on {target_pass.name} now",
+                        f"Your pass includes {target_pass.tool_limit} tool{'s' if target_pass.tool_limit != 1 else ''}.",
+                        "/dashboard/billing",
+                    )
 
                 response_payload = {
                     "status": "upgraded" if upgraded_now else "pending_payment",
@@ -472,6 +484,14 @@ class ChangePassView(APIView):
                     "scheduled_tool_keys",
                     "updated_at",
                 ]
+            )
+            when = synced.scheduled_change_effective_at
+            notify(
+                request.user,
+                "pass",
+                f"{target_pass.name} is scheduled",
+                f"Your pass changes on {when:%B %-d, %Y}." if when else "Your pass changes at your next billing date.",
+                "/dashboard/billing",
             )
             return Response(
                 {
@@ -516,7 +536,16 @@ class SelectToolsView(APIView):
         if selection_error:
             return Response({"detail": selection_error}, status=status.HTTP_400_BAD_REQUEST)
 
+        before = set(subscription.items.values_list("tool__key", flat=True))
         sync.set_selected_tools(subscription, tools)
+        if before != {tool.key for tool in tools}:
+            notify(
+                request.user,
+                "tools",
+                "Your tools were updated",
+                "You now have: " + ", ".join(tool.name for tool in tools) + ".",
+                "/dashboard/tools",
+            )
         return Response({"summary": _summary_payload(request.user)}, status=status.HTTP_200_OK)
 
 
@@ -638,3 +667,17 @@ class StripeWebhookView(APIView):
             category=category,
             note=note,
         )
+
+        pass_name = subscription.access_pass.name if subscription.access_pass else "your pass"
+        if event_type == "invoice.payment_succeeded":
+            notify(subscription.user, "payment", "Payment received", f"Thanks! Your payment for {pass_name} went through.", "/dashboard/billing")
+        elif event_type == "invoice.payment_failed":
+            notify(
+                subscription.user,
+                "payment_failed",
+                "Payment failed",
+                f"We couldn't take the payment for {pass_name}. Update your card to keep your tools.",
+                "/dashboard/billing",
+            )
+        elif event_type == "customer.subscription.deleted":
+            notify(subscription.user, "pass", "Your subscription ended", "Pick a pass on Billing to unlock your tools again.", "/dashboard/billing")

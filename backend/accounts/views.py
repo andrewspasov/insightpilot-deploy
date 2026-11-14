@@ -16,6 +16,7 @@ from urllib.parse import urlencode
 import logging
 
 import requests
+from accounts.notifications import notify
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +57,14 @@ def register(request):
         username=username,
         email=email,
         password=make_password(password),  # hash the password
+    )
+
+    notify(
+        user,
+        "welcome",
+        "Welcome to InsightPilot",
+        "Pick a pass on the Billing page to unlock Nutrition and Fitness.",
+        "/dashboard/billing",
     )
 
     refresh = RefreshToken.for_user(user)
@@ -188,6 +197,13 @@ class PasswordResetConfirmView(APIView):
 
         user.set_password(password)
         user.save(update_fields=["password"])
+        notify(
+            user,
+            "security",
+            "Your password was changed",
+            "If this wasn't you, reset your password again right away.",
+            "/dashboard/profile",
+        )
 
         return Response(
             {"message": "Password reset successful."},

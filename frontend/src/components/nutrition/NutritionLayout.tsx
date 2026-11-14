@@ -20,6 +20,7 @@ import { useNavigate } from "react-router-dom";
 import { useToolAccess } from "@/hooks/use-entitlements";
 import { CoachNudgeDialog } from "@/components/nutrition/CoachNudgeDialog";
 import { CoachBubble } from "@/components/neon/CoachBubble";
+import { NotificationPopups } from "@/components/notifications/NotificationPopups";
 
 interface NutritionLayoutProps {
   children: ReactNode;
@@ -153,6 +154,7 @@ export function NutritionLayout({ children }: NutritionLayoutProps) {
         />
       )}
 
+      <NotificationPopups />
       <main className="flex-1 overflow-auto">
         {/* Below lg the fixed menu button sits top-left, so the page starts under it. */}
         <div className="container mx-auto px-4 pb-8 pt-16 lg:px-8 lg:pt-8">

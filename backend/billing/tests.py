@@ -206,3 +206,28 @@ class ToolsAndComingSoonPassTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("isn't available yet", response.data["detail"])
         mock_create.assert_not_called()
+
+
+class SamePassChangeTests(APITestCase):
+    def test_changing_to_the_current_pass_is_refused(self):
+        user = get_user_model().objects.create_user(username="same-pass", email="same-pass@example.com", password="password123")
+        self.client.force_authenticate(user)
+        bronze, _ = AccessPass.objects.update_or_create(
+            key=AccessPass.KEY_BRONZE,
+            defaults={"name": "Bronze Access Pass", "monthly_price_cents": 499, "tool_limit": 1,
+                      "stripe_price_id": "price_bronze_test", "is_active": True},
+        )
+        customer = Customer.objects.create(user=user, stripe_customer_id="cus_same")
+        Subscription.objects.create(
+            user=user, customer=customer, stripe_subscription_id="sub_same", access_pass=bronze,
+            status=Subscription.STATUS_ACTIVE,
+        )
+        with patch("billing.views.stripe_service.change_subscription_pass_immediate") as mock_change:
+            response = self.client.post(
+                "/api/billing/change-pass/",
+                {"target_pass_key": "bronze", "effective_mode": "next_cycle", "selected_tool_keys": ["nutrition"]},
+                format="json",
+            )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("already on Bronze", response.data["detail"])
+        mock_change.assert_not_called()

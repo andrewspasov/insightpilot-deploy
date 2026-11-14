@@ -144,3 +144,52 @@ class AvatarUploadValidationTests(APITestCase):
         self.client.post("/api/me/avatar/", {"avatar": upload}, format="multipart")
         response = self.client.get("/api/me/")
         self.assertTrue(response.data["avatar_url"].startswith("data:image/jpeg;base64,"))
+
+
+class NotificationApiTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="notes", email="notes@example.com", password="Sup3r-secret-pass")
+        self.other = User.objects.create_user(username="other", email="other@example.com", password="Sup3r-secret-pass")
+        self.client.force_authenticate(user=self.user)
+
+    def test_list_shows_only_my_notifications_newest_first_with_unread_count(self):
+        from accounts.notifications import notify
+
+        notify(self.user, "tools", "First")
+        notify(self.user, "pass", "Second", "Body", "/dashboard/billing")
+        notify(self.other, "pass", "Not mine")
+        data = self.client.get("/api/notifications/").data
+        self.assertEqual(data["unread_count"], 2)
+        self.assertEqual([n["title"] for n in data["notifications"]], ["Second", "First"])
+        self.assertEqual(data["notifications"][0]["link"], "/dashboard/billing")
+
+    def test_mark_some_or_all_as_read(self):
+        from accounts.notifications import notify
+
+        a = notify(self.user, "tools", "A")
+        notify(self.user, "tools", "B")
+        other = notify(self.other, "tools", "C")
+        self.client.post("/api/notifications/read/", {"ids": [a.id, other.id]}, format="json")
+        self.assertEqual(self.client.get("/api/notifications/").data["unread_count"], 1)
+        other.refresh_from_db()
+        self.assertIsNone(other.read_at)  # can't touch someone else's
+        self.client.post("/api/notifications/read/", {"all": True}, format="json")
+        self.assertEqual(self.client.get("/api/notifications/").data["unread_count"], 0)
+
+    def test_signup_says_welcome(self):
+        self.client.force_authenticate(user=None)
+        self.client.post(
+            "/accounts/register/",
+            {"username": "fresh", "email": "fresh@example.com", "password": "Sup3r-secret-pass"},
+            format="json",
+        )
+        fresh = User.objects.get(username="fresh")
+        self.assertEqual(fresh.notifications.first().kind, "welcome")
+
+    def test_old_notifications_are_trimmed(self):
+        from accounts import notifications
+
+        for i in range(notifications.KEEP_PER_USER + 5):
+            notifications.notify(self.user, "tools", f"n{i}")
+        self.assertEqual(self.user.notifications.count(), notifications.KEEP_PER_USER)
+        self.assertEqual(self.user.notifications.first().title, f"n{notifications.KEEP_PER_USER + 4}")

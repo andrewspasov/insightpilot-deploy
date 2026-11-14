@@ -6,6 +6,8 @@ urlpatterns = [
     path("health/", views.health_check, name="health_check"),
     path("me/", views.CurrentUserView.as_view(), name="current-user"),
     path("me/avatar/", views.CurrentUserAvatarView.as_view(), name="current-user-avatar"),
+    path("notifications/", views.NotificationListView.as_view(), name="notifications"),
+    path("notifications/read/", views.NotificationReadView.as_view(), name="notifications-read"),
     
     # Login: user sends username + password, gets back access + refresh tokens
     path("login/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
