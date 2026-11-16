@@ -82,7 +82,7 @@ export default function Signup() {
       if (data.authorize_url) {
         window.location.href = data.authorize_url;
       } else {
-        setMessage(data.detail || "Unable to start OAuth flow.");
+        setMessage(data.detail || "Couldn't start the sign-in. Please try again.");
       }
     } catch (err) {
       console.error(err);

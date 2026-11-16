@@ -212,9 +212,22 @@ class PasswordResetConfirmView(APIView):
 
 
 def _oauth_frontend_redirect(params: dict) -> str:
+    """Back to the website's /oauth/callback page.
+
+    Everything goes in the #fragment, which browsers never send to any server,
+    so the login tokens don't end up in server logs or Referer headers.
+    """
     base_url = getattr(settings, "FRONTEND_BASE_URL", "http://localhost:8080").rstrip("/")
     path = getattr(settings, "FRONTEND_OAUTH_REDIRECT_PATH", "/oauth/callback")
-    return f"{base_url}{path}?{urlencode(params)}"
+    return f"{base_url}{path}#{urlencode(params)}"
+
+
+def _safe_next(value: str | None) -> str:
+    """Only paths inside the website, e.g. "/dashboard" (never "//evil.com")."""
+    value = (value or "").strip()
+    if not value.startswith("/") or value.startswith("//") or "\\" in value:
+        return "/dashboard"
+    return value
 
 
 def _get_or_create_social_user(email: str, full_name: str = "") -> User:
@@ -237,6 +250,13 @@ def _get_or_create_social_user(email: str, full_name: str = "") -> User:
         if len(parts) > 1:
             user.last_name = parts[1]
     user.save(update_fields=["password", "first_name", "last_name"])
+    notify(
+        user,
+        "welcome",
+        "Welcome to InsightPilot",
+        "Pick a pass on the Billing page to unlock Nutrition and Fitness.",
+        "/dashboard/billing",
+    )
     return user
 
 
@@ -252,7 +272,7 @@ class GoogleOAuthStartView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        next_path = request.query_params.get("next") or "/dashboard"
+        next_path = _safe_next(request.query_params.get("next"))
         state = signing.dumps({"next": next_path}, salt="google-oauth")
 
         params = {
@@ -260,8 +280,8 @@ class GoogleOAuthStartView(APIView):
             "redirect_uri": redirect_uri,
             "response_type": "code",
             "scope": "openid email profile",
-            "access_type": "offline",
-            "prompt": "consent",
+            # Just the account picker; we don't need Google refresh tokens.
+            "prompt": "select_account",
             "state": state,
         }
         authorize_url = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -322,6 +342,9 @@ class GoogleOAuthCallbackView(APIView):
         full_name = profile.get("name", "")
         if not email:
             return redirect(_oauth_frontend_redirect({"error": "missing_email"}))
+        # Matching an existing account by email is only safe if Google verified it.
+        if profile.get("email_verified") is not True:
+            return redirect(_oauth_frontend_redirect({"error": "email_not_verified"}))
 
         user = _get_or_create_social_user(email=email, full_name=full_name)
         refresh = RefreshToken.for_user(user)
@@ -329,7 +352,7 @@ class GoogleOAuthCallbackView(APIView):
             "access": str(refresh.access_token),
             "refresh": str(refresh),
             "provider": "google",
-            "next": payload.get("next", "/dashboard"),
+            "next": _safe_next(payload.get("next")),
         }
         return redirect(_oauth_frontend_redirect(params))
 
@@ -346,7 +369,7 @@ class FacebookOAuthStartView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        next_path = request.query_params.get("next") or "/dashboard"
+        next_path = _safe_next(request.query_params.get("next"))
         state = signing.dumps({"next": next_path}, salt="facebook-oauth")
 
         params = {
@@ -420,6 +443,6 @@ class FacebookOAuthCallbackView(APIView):
             "access": str(refresh.access_token),
             "refresh": str(refresh),
             "provider": "facebook",
-            "next": payload.get("next", "/dashboard"),
+            "next": _safe_next(payload.get("next")),
         }
         return redirect(_oauth_frontend_redirect(params))
