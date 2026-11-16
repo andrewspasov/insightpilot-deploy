@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { Logo } from "@/components/Logo";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -61,9 +62,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           {/* Logo */}
           <div className="flex h-16 items-center border-b border-border px-6">
             <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-accent">
-                <Sparkles className="h-5 w-5 text-primary-foreground" />
-              </div>
+              <Logo className="h-9 w-9" />
               <span className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
                 InsightPilot
               </span>

@@ -4,7 +4,6 @@ import {
   ArrowRight,
   ArrowDown,
   Apple,
-  Compass,
   Dumbbell,
   Menu,
   X,
@@ -13,6 +12,7 @@ import {
   ChartNoAxesCombined,
   Sparkles,
 } from "lucide-react";
+import { Logo } from "@/components/Logo";
 import "./landing.css";
 const Planet = lazy(() => import("@/components/landing/Planet"));
 export default function Index() {
@@ -42,7 +42,7 @@ export default function Index() {
       <div className="ip-content">
         <header className="ip-nav">
           <Link className="ip-brand" to="/">
-            <Compass />
+            <Logo className="h-9 w-9" />
             InsightPilot<span>.</span>
           </Link>
           <nav
@@ -271,7 +271,7 @@ export default function Index() {
         <footer className="ip-footer">
           <div>
             <Link to="/" className="ip-brand">
-              <Compass />
+              <Logo className="h-8 w-8" />
               InsightPilot.
             </Link>
             <p>Thoughtful tools. Everyday progress.</p>

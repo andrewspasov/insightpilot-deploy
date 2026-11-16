@@ -15,6 +15,7 @@ import {
   ArrowRight,
   Play
 } from 'lucide-react';
+import { Logo } from "@/components/Logo";
 
 const About = () => {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
@@ -88,9 +89,7 @@ const About = () => {
       <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0a0a0f]/60 backdrop-blur-xl border-b border-white/5">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 group">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center transition-transform group-hover:scale-110 group-hover:shadow-lg group-hover:shadow-blue-500/30">
-              <Sparkles className="h-5 w-5 text-white" />
-            </div>
+            <Logo className="h-9 w-9 transition-transform group-hover:scale-110" />
             <span className="font-semibold text-xl tracking-tight">InsightPilot</span>
           </Link>
           <div className="flex items-center gap-8">
@@ -781,9 +780,7 @@ const About = () => {
         <div className="container mx-auto max-w-7xl">
           <div className="flex flex-col md:flex-row items-center justify-between gap-8">
             <div className="flex items-center gap-3 group">
-              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg group-hover:scale-110 group-hover:shadow-xl group-hover:shadow-blue-500/40 transition-all duration-300">
-                <Sparkles className="h-6 w-6 text-white" />
-              </div>
+              <Logo className="h-11 w-11 transition-transform duration-300 group-hover:scale-110" />
               <span className="font-semibold text-2xl tracking-tight">InsightPilot</span>
             </div>
             <div className="flex gap-10 text-sm">

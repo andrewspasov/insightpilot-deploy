@@ -18,6 +18,7 @@ import {
   Home,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { Logo } from "@/components/Logo";
 import { logout } from "@/lib/auth";
 import { useNavigate } from "react-router-dom";
 import { useEntitlements } from "@/hooks/use-entitlements";
@@ -97,11 +98,7 @@ export function GlobalLayout({ children }: GlobalLayoutProps) {
             )}
           >
             <div className={cn("flex items-center gap-2", sidebarCollapsed && "gap-0")}>
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-accent">
-                <span className="text-sm font-bold text-primary-foreground">
-                  IP
-                </span>
-              </div>
+              <Logo className="h-9 w-9 drop-shadow-[0_0_10px_rgba(34,211,238,0.35)]" />
               <span className="sidebar-label text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
                 InsightPilot
               </span>

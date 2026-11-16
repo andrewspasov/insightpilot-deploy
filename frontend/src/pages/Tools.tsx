@@ -55,6 +55,8 @@ export default function Tools() {
     setSelectedKeys((prev) => {
       const has = prev.includes(toolKey);
       if (has) return prev.filter((key) => key !== toolKey);
+      // One slot: picking another tool swaps it in.
+      if (limit === 1) return [toolKey];
       if (limit && prev.length >= limit) {
         toast({
           title: "No free slots",

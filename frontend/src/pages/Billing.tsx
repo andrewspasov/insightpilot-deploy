@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
-import { CreditCard } from "lucide-react";
+import { CheckCircle2, CreditCard, Loader2, X } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { PageHeader } from "@/components/dashboard/PageHeader";
@@ -78,6 +78,46 @@ export default function Billing() {
   const canPurchasePass = status === "canceled";
   const paymentPending = status === "pending";
 
+  // Payment happens on Stripe's page, so while it's pending (a new pass, or an
+  // upgrade that needs paying) check every few seconds and whenever the user
+  // comes back to this tab.
+  const [awaitingUpgradeTo, setAwaitingUpgradeTo] = useState<string | null>(null);
+  const watching = paymentPending || awaitingUpgradeTo !== null;
+  useEffect(() => {
+    if (!watching) return;
+    const check = () => {
+      if (document.visibilityState === "visible") refetch();
+    };
+    const timer = window.setInterval(check, 3000);
+    window.addEventListener("focus", check);
+    document.addEventListener("visibilitychange", check);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", check);
+      document.removeEventListener("visibilitychange", check);
+    };
+  }, [watching, refetch]);
+
+  // Green banner when the payment lands.
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const previousRef = useRef<{ status?: string; passKey?: string }>({});
+  const livePassKey = data?.current_pass?.key;
+  const livePassName = data?.current_pass?.name;
+  const livePassLimit = data?.current_pass?.tool_limit ?? 0;
+  useEffect(() => {
+    if (!data) return;
+    const previous = previousRef.current;
+    if (previous.status === "pending" && status === "active") {
+      setSuccessMessage(
+        `Payment received. Your ${livePassName ?? "pass"} is active. Pick your tool${livePassLimit > 1 ? "s" : ""} below.`,
+      );
+    } else if (awaitingUpgradeTo && livePassKey === awaitingUpgradeTo && status === "active") {
+      setSuccessMessage(`Payment received. You're on ${livePassName ?? "your new pass"} now.`);
+      setAwaitingUpgradeTo(null);
+    }
+    previousRef.current = { status, passKey: livePassKey };
+  }, [data, status, livePassKey, livePassName, livePassLimit, awaitingUpgradeTo]);
+
   const targetIsUpgrade = useMemo(() => {
     if (!currentPass || !selectedPass) return false;
     return selectedPass.monthly_price_cents > currentPass.monthly_price_cents;
@@ -89,6 +129,8 @@ export default function Billing() {
       const has = prev.includes(toolKey);
       if (has) return prev.filter((key) => key !== toolKey);
       const limit = selectedPass?.tool_limit ?? currentLimit;
+      // One slot: picking another tool swaps it in.
+      if (limit === 1) return [toolKey];
       if (limit && prev.length >= limit) {
         toast({
           title: "No slots left",
@@ -178,6 +220,7 @@ export default function Billing() {
       };
       const result = await changePass.mutateAsync(payload);
       if (result?.payment_action_required && result?.payment_url) {
+        setAwaitingUpgradeTo(selectedPass.key);
         toast({
           title: "Payment required",
           description: "Open Stripe invoice to complete the upgrade.",
@@ -224,9 +267,31 @@ export default function Billing() {
         </div>
       )}
 
-      {!isLoading && paymentPending && (
-        <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-          Your subscription is waiting for payment confirmation. Complete the Stripe invoice below to activate tool access.
+      {successMessage && (
+        <div
+          role="status"
+          className="flex animate-fade-in items-start gap-3 rounded-xl border border-emerald-400/40 bg-emerald-500/15 px-4 py-3 text-sm text-emerald-100 shadow-[0_0_24px_rgba(16,185,129,0.25)]"
+        >
+          <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" />
+          <p className="flex-1 font-medium">{successMessage}</p>
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={() => setSuccessMessage(null)}
+            className="rounded p-0.5 text-emerald-200/80 transition hover:text-emerald-100"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {!isLoading && (paymentPending || awaitingUpgradeTo) && (
+        <div className="flex items-center gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+          <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+          <span>
+            Waiting for your payment. Finish it on Stripe's page; this page updates by itself as soon as it goes
+            through.
+          </span>
         </div>
       )}
 
