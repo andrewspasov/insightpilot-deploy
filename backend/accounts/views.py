@@ -323,6 +323,8 @@ class GoogleOAuthCallbackView(APIView):
             timeout=10,
         )
         if token_resp.status_code != 200:
+            # Google explains why (e.g. "invalid_client" = wrong client secret).
+            logger.warning("Google token exchange failed (%s): %s", token_resp.status_code, token_resp.text[:500])
             return redirect(_oauth_frontend_redirect({"error": "token_exchange_failed"}))
 
         access_token = token_resp.json().get("access_token")
@@ -417,6 +419,8 @@ class FacebookOAuthCallbackView(APIView):
             timeout=10,
         )
         if token_resp.status_code != 200:
+            # Meta explains why (e.g. "Error validating client secret").
+            logger.warning("Facebook token exchange failed (%s): %s", token_resp.status_code, token_resp.text[:500])
             return redirect(_oauth_frontend_redirect({"error": "token_exchange_failed"}))
 
         access_token = token_resp.json().get("access_token")

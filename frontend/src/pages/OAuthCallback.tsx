@@ -50,8 +50,8 @@ export default function OAuthCallback() {
   return (
     <div className="relative isolate min-h-screen overflow-hidden bg-background">
       <AuthBackdrop />
-      <div className="mx-auto flex min-h-screen max-w-xl items-center px-6">
-        <div className="auth-rise neon-edge w-full rounded-3xl p-10 text-center shadow-2xl backdrop-blur">
+      <div className="flex min-h-screen w-full items-center justify-center px-6">
+        <div className="auth-rise neon-edge w-full max-w-xl rounded-3xl p-10 text-center shadow-2xl backdrop-blur">
           {error ? (
             <>
               <h1 className="text-2xl font-semibold text-foreground">Sign-in didn't work</h1>
