@@ -4,6 +4,7 @@ from django.contrib.auth.hashers import make_password
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.core.mail import send_mail
 from django.core import signing
+from django.http import HttpResponseRedirect
 from django.shortcuts import redirect
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
@@ -222,6 +223,40 @@ def _oauth_frontend_redirect(params: dict) -> str:
     return f"{base_url}{path}#{urlencode(params)}"
 
 
+# The phone app's sign-in sheet closes as soon as the server sends it here.
+# Fixed on purpose: the server never sends tokens to an address the request chose.
+MOBILE_OAUTH_RETURN_URL = "insightpilot://oauth"
+
+
+class _AppRedirect(HttpResponseRedirect):
+    """Django only redirects to http(s)/ftp by default; also allow our app link."""
+
+    allowed_schemes = ["http", "https", "insightpilot"]
+
+
+def _oauth_state(request, salt: str) -> str:
+    data = {"next": _safe_next(request.query_params.get("next"))}
+    if request.query_params.get("client") == "mobile":
+        data["app"] = True
+    return signing.dumps(data, salt=salt)
+
+
+def _load_oauth_state(state: str | None, salt: str) -> dict | None:
+    if not state:
+        return None
+    try:
+        return signing.loads(state, salt=salt, max_age=600)
+    except signing.BadSignature:
+        return None
+
+
+def _oauth_finish(payload: dict | None, params: dict):
+    """Send the result back to wherever the sign-in started: the app or the website."""
+    if payload and payload.get("app"):
+        return _AppRedirect(f"{MOBILE_OAUTH_RETURN_URL}#{urlencode(params)}")
+    return redirect(_oauth_frontend_redirect(params))
+
+
 def _safe_next(value: str | None) -> str:
     """Only paths inside the website, e.g. "/dashboard" (never "//evil.com")."""
     value = (value or "").strip()
@@ -272,8 +307,7 @@ class GoogleOAuthStartView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        next_path = _safe_next(request.query_params.get("next"))
-        state = signing.dumps({"next": next_path}, salt="google-oauth")
+        state = _oauth_state(request, "google-oauth")
 
         params = {
             "client_id": client_id,
@@ -297,19 +331,18 @@ class GoogleOAuthCallbackView(APIView):
     def get(self, request):
         code = request.query_params.get("code")
         state = request.query_params.get("state")
+        # Read the state first, so even a cancelled sign-in goes back to the right place.
+        payload = _load_oauth_state(state, "google-oauth")
         if not code or not state:
-            return redirect(_oauth_frontend_redirect({"error": "missing_code_or_state"}))
-
-        try:
-            payload = signing.loads(state, salt="google-oauth", max_age=600)
-        except signing.BadSignature:
-            return redirect(_oauth_frontend_redirect({"error": "invalid_state"}))
+            return _oauth_finish(payload, {"error": "missing_code_or_state"})
+        if payload is None:
+            return _oauth_finish(None, {"error": "invalid_state"})
 
         client_id = getattr(settings, "GOOGLE_CLIENT_ID", "").strip()
         client_secret = getattr(settings, "GOOGLE_CLIENT_SECRET", "").strip()
         redirect_uri = getattr(settings, "GOOGLE_REDIRECT_URI", "").strip()
         if not client_id or not client_secret or not redirect_uri:
-            return redirect(_oauth_frontend_redirect({"error": "google_not_configured"}))
+            return _oauth_finish(payload, {"error": "google_not_configured"})
 
         token_resp = requests.post(
             "https://oauth2.googleapis.com/token",
@@ -325,11 +358,11 @@ class GoogleOAuthCallbackView(APIView):
         if token_resp.status_code != 200:
             # Google explains why (e.g. "invalid_client" = wrong client secret).
             logger.warning("Google token exchange failed (%s): %s", token_resp.status_code, token_resp.text[:500])
-            return redirect(_oauth_frontend_redirect({"error": "token_exchange_failed"}))
+            return _oauth_finish(payload, {"error": "token_exchange_failed"})
 
         access_token = token_resp.json().get("access_token")
         if not access_token:
-            return redirect(_oauth_frontend_redirect({"error": "missing_access_token"}))
+            return _oauth_finish(payload, {"error": "missing_access_token"})
 
         userinfo_resp = requests.get(
             "https://openidconnect.googleapis.com/v1/userinfo",
@@ -337,16 +370,16 @@ class GoogleOAuthCallbackView(APIView):
             timeout=10,
         )
         if userinfo_resp.status_code != 200:
-            return redirect(_oauth_frontend_redirect({"error": "userinfo_failed"}))
+            return _oauth_finish(payload, {"error": "userinfo_failed"})
 
         profile = userinfo_resp.json()
         email = profile.get("email")
         full_name = profile.get("name", "")
         if not email:
-            return redirect(_oauth_frontend_redirect({"error": "missing_email"}))
+            return _oauth_finish(payload, {"error": "missing_email"})
         # Matching an existing account by email is only safe if Google verified it.
         if profile.get("email_verified") is not True:
-            return redirect(_oauth_frontend_redirect({"error": "email_not_verified"}))
+            return _oauth_finish(payload, {"error": "email_not_verified"})
 
         user = _get_or_create_social_user(email=email, full_name=full_name)
         refresh = RefreshToken.for_user(user)
@@ -356,7 +389,7 @@ class GoogleOAuthCallbackView(APIView):
             "provider": "google",
             "next": _safe_next(payload.get("next")),
         }
-        return redirect(_oauth_frontend_redirect(params))
+        return _oauth_finish(payload, params)
 
 
 class FacebookOAuthStartView(APIView):
@@ -371,8 +404,7 @@ class FacebookOAuthStartView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        next_path = _safe_next(request.query_params.get("next"))
-        state = signing.dumps({"next": next_path}, salt="facebook-oauth")
+        state = _oauth_state(request, "facebook-oauth")
 
         params = {
             "client_id": app_id,
@@ -394,19 +426,18 @@ class FacebookOAuthCallbackView(APIView):
     def get(self, request):
         code = request.query_params.get("code")
         state = request.query_params.get("state")
+        # Read the state first, so even a cancelled sign-in goes back to the right place.
+        payload = _load_oauth_state(state, "facebook-oauth")
         if not code or not state:
-            return redirect(_oauth_frontend_redirect({"error": "missing_code_or_state"}))
-
-        try:
-            payload = signing.loads(state, salt="facebook-oauth", max_age=600)
-        except signing.BadSignature:
-            return redirect(_oauth_frontend_redirect({"error": "invalid_state"}))
+            return _oauth_finish(payload, {"error": "missing_code_or_state"})
+        if payload is None:
+            return _oauth_finish(None, {"error": "invalid_state"})
 
         app_id = getattr(settings, "FACEBOOK_APP_ID", "").strip()
         app_secret = getattr(settings, "FACEBOOK_APP_SECRET", "").strip()
         redirect_uri = getattr(settings, "FACEBOOK_REDIRECT_URI", "").strip()
         if not app_id or not app_secret or not redirect_uri:
-            return redirect(_oauth_frontend_redirect({"error": "facebook_not_configured"}))
+            return _oauth_finish(payload, {"error": "facebook_not_configured"})
 
         token_resp = requests.get(
             "https://graph.facebook.com/v19.0/oauth/access_token",
@@ -421,11 +452,11 @@ class FacebookOAuthCallbackView(APIView):
         if token_resp.status_code != 200:
             # Meta explains why (e.g. "Error validating client secret").
             logger.warning("Facebook token exchange failed (%s): %s", token_resp.status_code, token_resp.text[:500])
-            return redirect(_oauth_frontend_redirect({"error": "token_exchange_failed"}))
+            return _oauth_finish(payload, {"error": "token_exchange_failed"})
 
         access_token = token_resp.json().get("access_token")
         if not access_token:
-            return redirect(_oauth_frontend_redirect({"error": "missing_access_token"}))
+            return _oauth_finish(payload, {"error": "missing_access_token"})
 
         profile_resp = requests.get(
             "https://graph.facebook.com/me",
@@ -433,13 +464,13 @@ class FacebookOAuthCallbackView(APIView):
             timeout=10,
         )
         if profile_resp.status_code != 200:
-            return redirect(_oauth_frontend_redirect({"error": "userinfo_failed"}))
+            return _oauth_finish(payload, {"error": "userinfo_failed"})
 
         profile = profile_resp.json()
         email = profile.get("email")
         full_name = profile.get("name", "")
         if not email:
-            return redirect(_oauth_frontend_redirect({"error": "missing_email"}))
+            return _oauth_finish(payload, {"error": "missing_email"})
 
         user = _get_or_create_social_user(email=email, full_name=full_name)
         refresh = RefreshToken.for_user(user)
@@ -449,4 +480,4 @@ class FacebookOAuthCallbackView(APIView):
             "provider": "facebook",
             "next": _safe_next(payload.get("next")),
         }
-        return redirect(_oauth_frontend_redirect(params))
+        return _oauth_finish(payload, params)

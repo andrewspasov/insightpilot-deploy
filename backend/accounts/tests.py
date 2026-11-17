@@ -138,6 +138,34 @@ class SocialLoginTests(APITestCase):
         _, fragment = self._fragment(response)
         self.assertEqual(fragment, {"error": "invalid_state"})
 
+    def test_phone_start_marks_the_state_as_app(self):
+        data = self.client.get("/accounts/oauth/google/start/", {"client": "mobile"}).data
+        query = parse_qs(urlparse(data["authorize_url"]).query)
+        self.assertTrue(signing.loads(query["state"][0], salt="google-oauth")["app"])
+        # The website's start has no app flag.
+        data = self.client.get("/accounts/oauth/google/start/").data
+        query = parse_qs(urlparse(data["authorize_url"]).query)
+        self.assertNotIn("app", signing.loads(query["state"][0], salt="google-oauth"))
+
+    @mock.patch("accounts.views.requests.get")
+    @mock.patch("accounts.views.requests.post")
+    def test_phone_sign_in_goes_back_to_the_app(self, mock_post, mock_get):
+        mock_post.return_value = _fake_response(payload={"access_token": "g-token"})
+        mock_get.return_value = _fake_response(payload={"email": "phone@example.com", "email_verified": True})
+        state = signing.dumps({"next": "/dashboard", "app": True}, salt="google-oauth")
+        response = self.client.get("/accounts/oauth/google/callback/", {"code": "abc", "state": state})
+        url, fragment = self._fragment(response)
+        self.assertEqual((url.scheme, url.netloc), ("insightpilot", "oauth"))
+        self.assertIn("access", fragment)
+        self.assertIn("refresh", fragment)
+
+    def test_cancelled_phone_sign_in_goes_back_to_the_app(self):
+        state = signing.dumps({"next": "/dashboard", "app": True}, salt="facebook-oauth")
+        response = self.client.get("/accounts/oauth/facebook/callback/", {"error": "access_denied", "state": state})
+        url, fragment = self._fragment(response)
+        self.assertEqual(url.scheme, "insightpilot")
+        self.assertEqual(fragment, {"error": "missing_code_or_state"})
+
     @mock.patch("accounts.views.requests.get")
     def test_facebook_creates_the_user(self, mock_get):
         mock_get.side_effect = [
