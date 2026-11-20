@@ -5,7 +5,9 @@ import { createAuthFetch } from "./auth-fetch";
 
 // Base URL of your Django API, e.g. https://api.example.com/api in production.
 // Set VITE_API_URL at build time; local development falls back to localhost.
-export const API_BASE_URL: string = (import.meta.env.VITE_API_URL || "http://localhost:8000/api").replace(/\/$/, "");
+// trim(): a stray space or line break pasted into the host's settings
+// (e.g. "https://…/api\n") must not break the address.
+export const API_BASE_URL: string = (import.meta.env.VITE_API_URL || "http://localhost:8000/api").trim().replace(/\/+$/, "");
 
 // The backend's origin without /api, for non-API routes (accounts, OAuth, blog).
 export const BACKEND_ORIGIN = API_BASE_URL.replace(/\/api$/, "");
